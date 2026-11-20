@@ -1,0 +1,29 @@
+{
+  "name": "SpotLight",
+  "properties": {
+    "cuttOff": {
+      "type": "Float"
+    },
+    "ambient": {
+      "type": "FVec3"
+    },
+    "diffuse": {
+      "type": "FVec3"
+    },
+    "specular": {
+      "type": "FVec3"
+    },
+    "constant": {
+      "type": "Float"
+    },
+    "linear": {
+      "type": "Float"
+    },
+    "quadratic": {
+      "type": "Float"
+    }
+  },
+   "includes":[
+      "platform/types.h"
+	]
+}

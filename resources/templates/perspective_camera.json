@@ -1,0 +1,20 @@
+{
+   "name":"PerspectiveCamera",
+   "properties":{
+      "zNear":{
+         "type":"Float"
+      },
+      "zFar":{
+         "type":"Float"
+      },
+      "yFOVDegrees":{
+         "type":"Float"
+      },
+      "aspectRatio":{
+         "type":"Float"
+      }
+   },
+   "includes":[
+      "platform/types.h"
+	]
+}

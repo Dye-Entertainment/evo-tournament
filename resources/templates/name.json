@@ -1,0 +1,12 @@
+{
+   "name":"Name",
+   "properties":{
+      "name":{
+         "type":"Char",
+         "array_count": 10
+      }
+   },
+   "includes":[
+      "platform/types.h"
+	]
+}

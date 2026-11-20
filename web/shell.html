@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evo Tournament</title>
+<style>
+  :root {
+    --bg: #0b0a10;
+    --panel: #15131c;
+    --text: #ece8f2;
+    --muted: #a49eb2;
+    --accent: #ff8c28;
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* The engine renders at a fixed 1280x720; CSS scales it to fit. SDL writes inline
+     sizes onto the canvas, so these need !important to win. */
+  #canvas {
+    display: block;
+    width: min(100vw, calc(100vh * 16 / 9)) !important;
+    height: min(100vh, calc(100vw * 9 / 16)) !important;
+    background: #000;
+    outline: none;
+    cursor: default;
+  }
+  #loader {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: radial-gradient(circle at 50% 40%, #2a1a22 0%, var(--bg) 70%);
+    z-index: 10;
+    transition: opacity 0.4s;
+  }
+  #loader h1 {
+    margin: 0;
+    font-size: clamp(28px, 6vw, 56px);
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+  #loader p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+    text-align: center;
+    padding: 0 16px;
+  }
+  #bar {
+    width: min(360px, 80vw);
+    height: 8px;
+    border-radius: 4px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  #bar > div {
+    width: 0%;
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.2s;
+  }
+  #hint {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    font-size: 13px;
+    color: var(--muted);
+    background: rgba(0, 0, 0, 0.55);
+    padding: 6px 12px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas></div>
+<div id="loader">
+  <h1>EVO TOURNAMENT</h1>
+  <div id="bar"><div></div></div>
+  <p id="status">Loading…</p>
+</div>
+<div id="hint">Click the arena to capture the mouse · Esc releases it</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+  var canvas = document.getElementById('canvas');
+  var loader = document.getElementById('loader');
+  var statusText = document.getElementById('status');
+  var barFill = document.querySelector('#bar > div');
+  var hint = document.getElementById('hint');
+
+  // Mouse state read by the game through platform_bridge.cpp.
+  var evoMouse = { dx: 0, dy: 0, wantLock: false, overUi: false };
+
+  document.addEventListener('mousemove', function (e) {
+    if (document.pointerLockElement === canvas) {
+      evoMouse.dx += e.movementX || 0;
+      evoMouse.dy += e.movementY || 0;
+    }
+  });
+  canvas.addEventListener('mousedown', function () {
+    canvas.focus();
+    if (evoMouse.wantLock && !evoMouse.overUi && document.pointerLockElement !== canvas) {
+      var request = canvas.requestPointerLock({ unadjustedMovement: true });
+      if (request && request.catch) {
+        request.catch(function () { canvas.requestPointerLock(); });
+      }
+    }
+  });
+  setInterval(function () {
+    var show = evoMouse.wantLock && document.pointerLockElement !== canvas;
+    hint.style.opacity = show ? '1' : '0';
+  }, 250);
+
+  // Keep game keys from scrolling or moving focus.
+  window.addEventListener('keydown', function (e) {
+    if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.code) >= 0 &&
+        document.activeElement === canvas) {
+      e.preventDefault();
+    }
+  }, { capture: true });
+
+  window.addEventListener('webglcontextlost', function () {
+    statusText.textContent = 'The graphics context was lost. Reload the page to continue.';
+  });
+
+  var Module = {
+    canvas: canvas,
+    evoMouse: evoMouse,
+    print: function (text) { console.log(text); },
+    printErr: function (text) { console.warn(text); },
+    setStatus: function (text) {
+      if (!text) {
+        return;
+      }
+      var match = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+      if (match) {
+        barFill.style.width = (100 * parseInt(match[2], 10) / parseInt(match[4], 10)).toFixed(0) + '%';
+        statusText.textContent = 'Downloading arena data…';
+      } else {
+        statusText.textContent = text;
+      }
+    },
+    monitorRunDependencies: function (left) {
+      if (left === 0) {
+        statusText.textContent = 'Starting…';
+      }
+    },
+    onRuntimeInitialized: function () {
+      barFill.style.width = '100%';
+      loader.style.opacity = '0';
+      setTimeout(function () { loader.style.display = 'none'; }, 450);
+      canvas.focus();
+    },
+    onAbort: function (what) {
+      loader.style.display = 'flex';
+      loader.style.opacity = '1';
+      statusText.textContent = 'The game crashed: ' + what + '. Reload the page to try again.';
+    }
+  };
+  if (typeof Peer === 'undefined') {
+    console.warn('PeerJS failed to load; online play is unavailable.');
+  }
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

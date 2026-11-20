@@ -1,0 +1,16 @@
+{
+   "name":"FreeFlyCamera",
+   "properties":{
+      "movementSpeed":{
+         "type":"Float",
+         "default": "10.0f"
+      },
+      "rotateSpeed":{
+         "type":"Float",
+         "default": "5.0f"
+      }
+   },
+   "includes":[
+      "platform/types.h"
+	]
+}

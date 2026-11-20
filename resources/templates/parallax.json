@@ -1,0 +1,16 @@
+{
+   "name":"Parallax",
+   "properties":{
+      "effect":{
+         "type":"FVec2",
+		 "default": "0,0"
+      },
+      "offset":{
+         "type":"FVec2",
+		 "default": "0,0"
+      }
+   },
+   "includes":[
+      "primitive/fvec2.h"
+	]
+}

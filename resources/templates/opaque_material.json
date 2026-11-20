@@ -1,0 +1,12 @@
+{
+   "name":"OpaqueMaterial",
+   "properties":{
+      "material":{
+         "type":"resource::AssetProxy<resource::Material>"
+      }
+   },
+   "includes":[
+	  "resource/asset_proxy.h",
+	  "resource/material.h"
+	]
+}

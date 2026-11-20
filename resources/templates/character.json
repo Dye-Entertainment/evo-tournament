@@ -1,0 +1,11 @@
+{
+   "name":"Character",
+   "properties":{
+      "character":{
+         "type":"UInt8"
+      }
+   },
+   "includes":[
+      "platform/types.h"
+	]
+}

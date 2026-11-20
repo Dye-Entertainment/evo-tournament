@@ -1,0 +1,14 @@
+{
+   "name":"OrthographicCamera",
+   "properties":{
+      "zNear":{
+         "type":"Float"
+      },
+      "zFar":{
+         "type":"Float"
+      }
+   },
+   "includes":[
+      "platform/types.h"
+	]
+}

@@ -1,0 +1,12 @@
+{
+   "name":"Mesh",
+   "properties":{
+      "mesh":{
+         "type":"resource::AssetProxy<resource::Mesh>"
+      }
+   },
+   "includes":[
+	  "resource/asset_proxy.h",
+	  "resource/mesh.h"
+	]
+}

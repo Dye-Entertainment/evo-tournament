@@ -1,0 +1,4 @@
+{
+	"vertex": "game://shaders/arena.vs",
+	"fragment": "game://shaders/arena.fs"
+}

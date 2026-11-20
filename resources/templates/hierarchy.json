@@ -1,0 +1,21 @@
+{
+   "name":"Hierarchy",
+   "properties":{
+      "parent":{
+         "type":"UInt64",
+         "default": "0"
+      },
+      "firstChild":{
+         "type":"UInt64",
+         "default": "INVALID_ENTITY_ID"
+      },
+      "nextSibling":{
+         "type":"UInt64",
+         "default": "INVALID_ENTITY_ID"
+      }
+   },
+    "includes":[
+      "platform/types.h",
+      "ecs/core/types.h"
+	]
+}

@@ -1,0 +1,26 @@
+{
+   "name":"Animator",
+   "properties":{
+      "currentAnimation":{
+         "type":"resource::AssetProxy<resource::AnimationClip>"
+      },
+     "currentTime":{
+       "type":"Float"
+     },
+     "rootJoint":{
+       "type":"ecs::EntityID"
+     },
+     "nodeToEntityMap":{
+       "type":"std::map<UInt32, ecs::EntityID>"
+     },
+     "jointInfos":{
+       "type":"std::vector<std::pair<ecs::EntityID, Mat4>>"
+     }
+   },
+   "includes":[
+	  "resource/asset_proxy.h",
+	  "resource/material.h",
+	  "map",
+	  "resource/animation_clip.h"
+	]
+}

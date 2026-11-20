@@ -1,0 +1,42 @@
+{
+  "name": "Transform",
+  "properties": {
+    "localPosition": {
+      "type": "FVec3",
+      "editorvisible": "true"
+    },
+    "localRotation": {
+      "type": "Quat",
+      "default": "0,0,0,1"
+    },
+    "localScale": {
+      "type": "FVec3",
+      "default": "1,1,1"
+    },
+    "worldPosition": {
+      "type": "FVec3",
+	  "default": "0,0,0"
+    },
+    "worldRotation": {
+      "type": "Quat",
+	  "default": "0,0,0,1"
+    },
+    "worldScale": {
+      "type": "FVec3",
+	  "default": "0,0,0"
+    },
+    "hierarchyDepth": {
+      "type": "UInt8",
+	  "default": "0"
+    },
+    "isDirty": {
+      "type": "Bool",
+	  "default": "false"
+    }
+  },
+   "includes":[
+      "platform/types.h",
+      "primitive/fvec3.h",
+      "primitive/quat.h"
+	]
+}

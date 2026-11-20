@@ -1,0 +1,22 @@
+{
+   "name":"Animation",
+   "properties":{
+      "nodeToEntityMap":{
+         "type":"std::map<int, ecs::EntityID>"
+      },
+     "m_CurrentAnimation":{
+       "type":"resource::AssetProxy<resource::AnimationClip>"
+     },
+     "m_CurrentTime":{
+       "type":"Float"
+     },
+     "m_DeltaTime":{
+       "type":"Float"
+     }
+   },
+   "includes":[
+	  "resource/asset_proxy.h",
+	  "resource/material.h",
+	  "resource/animation_clip.h"
+	]
+}
