@@ -60,6 +60,6 @@ class Effects final
     std::vector<Particle> particles;
     std::vector<Beam> beams;
     std::vector<Blast> blasts;
-    Random random;
+    math::Random random;
 };
 } // namespace evo

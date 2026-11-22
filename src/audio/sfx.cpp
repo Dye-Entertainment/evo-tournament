@@ -86,8 +86,8 @@ void Sfx::Play(const Sound sound, const Float volume, const Float pan)
     ma_sound_stop(voice);
     ma_sound_seek_to_pcm_frame(voice, 0);
     ma_sound_set_volume(voice, volume);
-    ma_sound_set_pan(voice, Clamp(pan, -1.0f, 1.0f));
-    ma_sound_set_pitch(voice, random.Range(0.95f, 1.05f));
+    ma_sound_set_pan(voice, math::Clamp(pan, -1.0f, 1.0f));
+    ma_sound_set_pitch(voice, random.NextRange(0.95f, 1.05f));
     ma_sound_start(voice);
 }
 
@@ -99,10 +99,13 @@ void Sfx::SetListener(const FVec3 &position, const Float yaw)
 
 void Sfx::PlayAt(const Sound sound, const FVec3 &position, const Float volume)
 {
-    const FVec3 delta = Sub(position, listenerPosition);
-    const Float distance = Length(delta);
+    const FVec3 delta = position - listenerPosition;
+    const Float distance = math::GetLength(delta);
     const Float attenuation = 1.0f / (1.0f + distance * 0.08f);
-    const Float pan = distance > 0.5f ? Dot(Scale(delta, 1.0f / distance), RightXZ(listenerYaw)) * 0.75f : 0.0f;
+    const Float pan =
+        distance > 0.5f
+            ? math::GetDotProduct(delta * (1.0f / distance), RightXZ(listenerYaw)) * 0.75f
+            : 0.0f;
     Play(sound, volume * attenuation, pan);
 }
 
@@ -110,7 +113,7 @@ void Sfx::SetMasterVolume(const Float volume)
 {
     if (engine != nullptr)
     {
-        ma_engine_set_volume(engine, Clamp(volume, 0.0f, 1.0f));
+        ma_engine_set_volume(engine, math::Clamp(volume, 0.0f, 1.0f));
     }
 }
 } // namespace evo

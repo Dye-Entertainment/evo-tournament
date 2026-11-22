@@ -17,7 +17,7 @@ int ValidateWaypoints(const Arena &arena)
     for (int i = 0; i < static_cast<int>(arena.waypoints.size()); ++i)
     {
         const FVec3 a = arena.waypoints[i].position;
-        if (arena.IsBlocked(PlayerBounds(Add(a, FVec3{0.0f, 0.01f, 0.0f}))))
+        if (arena.IsBlocked(PlayerBounds(a + FVec3{0.0f, 0.01f, 0.0f})))
         {
             std::printf("waypoint %d is inside geometry\n", i);
             ++failures;
@@ -30,7 +30,7 @@ int ValidateWaypoints(const Arena &arena)
             {
                 continue;
             }
-            if (!arena.HasLineOfSight(Add(a, lift), Add(b, lift)))
+            if (!arena.HasLineOfSight(a + lift, b + lift))
             {
                 std::printf("waypoint link %d -> %d has no line of sight\n", i, link);
                 ++failures;
@@ -39,7 +39,7 @@ int ValidateWaypoints(const Arena &arena)
     }
     for (const SpawnPoint &spawn : arena.spawnPoints)
     {
-        if (arena.IsBlocked(PlayerBounds(Add(spawn.position, FVec3{0.0f, 0.01f, 0.0f}))))
+        if (arena.IsBlocked(PlayerBounds(spawn.position + FVec3{0.0f, 0.01f, 0.0f})))
         {
             std::printf("spawn at %.1f %.1f %.1f is inside geometry\n", spawn.position.x,
                         spawn.position.y, spawn.position.z);
@@ -106,7 +106,7 @@ int RunSelfTest()
                 std::printf("NaN position for %s\n", player.name.c_str());
                 ++failures;
             }
-            if (world.arena.IsBlocked(PlayerBounds(Add(p, FVec3{0.0f, 0.01f, 0.0f}))))
+            if (world.arena.IsBlocked(PlayerBounds(p + FVec3{0.0f, 0.01f, 0.0f})))
             {
                 std::printf("%s embedded in geometry at %.2f %.2f %.2f\n", player.name.c_str(), p.x, p.y, p.z);
                 ++failures;
@@ -120,7 +120,7 @@ int RunSelfTest()
             ++samples;
             ring_samples += p.y > 5.0f ? 1 : 0;
             altar_samples += (p.y > 2.5f && p.y < 3.5f && std::fabs(p.x) < 6 && std::fabs(p.z) < 6) ? 1 : 0;
-            if (Length(Sub(p, last_positions[i])) < 0.5f)
+            if (math::GetLength(p - last_positions[i]) < 0.5f)
             {
                 ++idle_seconds[i];
                 max_idle = std::max(max_idle, idle_seconds[i]);
@@ -233,7 +233,10 @@ int RunNetTest()
             }
             if (frame % 30 == 0 && frame > 60 && me.alive)
             {
-                client.SendFire(WeaponId::RIFLE, EyePosition(me.move), DirectionFromAngles(me.yaw, 0.0f));
+                client.SendFire(
+                    WeaponId::RIFLE, EyePosition(me.move),
+                    math::GetDirectionFromYawPitch(me.yaw, 0.0f)
+                );
                 ++fired;
             }
         }
@@ -260,8 +263,8 @@ int RunNetTest()
     }
     const FVec3 client_position = client_world.players[remote_id].move.position;
     const FVec3 host_position = host_world.players[remote_id].move.position;
-    const Float moved = Length(Sub(client_position, start_position));
-    const Float drift = Length(Sub(client_position, host_position));
+    const Float moved = math::GetLength(client_position - start_position);
+    const Float drift = math::GetLength(client_position - host_position);
     std::printf("client moved %.2f m, host/client drift %.2f m\n", moved, drift);
     if (client_world.players[remote_id].alive && (moved < 1.0f || drift > 1.0f))
     {

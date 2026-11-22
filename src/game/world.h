@@ -232,7 +232,7 @@ class World final
     UInt16 nextEventSequence = 1;
     UInt16 nextProjectileId = 1;
     Float time = 0.0f;
-    Random random;
+    math::Random random;
     MoveEvents localMoveEvents;
 
   private:

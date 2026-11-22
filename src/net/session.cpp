@@ -360,8 +360,9 @@ void Session::HostReceive(World &world, const int peer, const std::vector<UInt8>
         Player &player = world.players[player_id];
         const UInt8 weapon = reader.U8();
         FVec3 origin = reader.Vec3();
-        const FVec3 direction = Normalize(reader.Vec3());
-        if (reader.Failed() || weapon >= WEAPON_COUNT || !IsSane(origin) || Length(direction) < 0.5f)
+        const FVec3 direction = math::GetNormalized(reader.Vec3());
+        if (reader.Failed() || weapon >= WEAPON_COUNT || !IsSane(origin) ||
+            math::GetLength(direction) < 0.5f)
         {
             return;
         }
@@ -378,7 +379,7 @@ void Session::HostReceive(World &world, const int peer, const std::vector<UInt8>
         }
         world.ConsumeShot(player);
         const FVec3 eye = EyePosition(player.move);
-        if (Length(Sub(origin, eye)) > 2.5f)
+        if (math::GetLength(origin - eye) > 2.5f)
         {
             origin = eye;
         }
@@ -884,7 +885,7 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
             if (event.a == localPlayer && localPlayer >= 0)
             {
                 Player &player = world.players[localPlayer];
-                player.move.velocity = Add(player.move.velocity, event.p0);
+                player.move.velocity = player.move.velocity + event.p0;
                 if (event.p0.y > 0.5f)
                 {
                     player.move.onGround = false;

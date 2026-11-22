@@ -33,7 +33,7 @@ Float AxisValue(const FVec3 &v, const int axis)
 void Accelerate(FVec3 &velocity, const FVec3 &wish_direction, const Float wish_speed,
                 const Float acceleration, const Float delta_seconds)
 {
-    const Float current_speed = Dot(velocity, wish_direction);
+    const Float current_speed = math::GetDotProduct(velocity, wish_direction);
     const Float add_speed = wish_speed - current_speed;
     if (add_speed <= 0.0f)
     {
@@ -68,10 +68,10 @@ void MoveAxis(MoveState &state, const int axis, const Float amount, const Bool c
         return;
     }
     AxisValue(state.position, axis) += amount;
-    Aabb bounds = PlayerBounds(state.position);
+    primitive::AxisAlignedBox bounds = PlayerBounds(state.position);
     for (const ArenaBox &box : arena.boxes)
     {
-        if (!Overlaps(bounds, box.bounds))
+        if (!primitive::Overlaps(bounds, box.bounds))
         {
             continue;
         }
@@ -128,9 +128,9 @@ FVec3 DodgeVector(const DodgeDirection direction, const Float yaw)
     case DodgeDirection::FORWARD:
         return ForwardXZ(yaw);
     case DodgeDirection::BACK:
-        return Scale(ForwardXZ(yaw), -1.0f);
+        return -ForwardXZ(yaw);
     case DodgeDirection::LEFT:
-        return Scale(RightXZ(yaw), -1.0f);
+        return -RightXZ(yaw);
     case DodgeDirection::RIGHT:
         return RightXZ(yaw);
     default:
@@ -140,7 +140,7 @@ FVec3 DodgeVector(const DodgeDirection direction, const Float yaw)
 
 Bool TrySnapToGround(MoveState &state, const Arena &arena)
 {
-    const Aabb bounds = PlayerBounds(state.position);
+    const primitive::AxisAlignedBox bounds = PlayerBounds(state.position);
     Float best_top = -1e9f;
     for (const ArenaBox &box : arena.boxes)
     {
@@ -166,10 +166,13 @@ Bool TrySnapToGround(MoveState &state, const Arena &arena)
 }
 } // namespace
 
-Aabb PlayerBounds(const FVec3 &feet_position)
+primitive::AxisAlignedBox PlayerBounds(const FVec3 &feet_position)
 {
-    return Aabb{
-        FVec3{feet_position.x - PLAYER_HALF_WIDTH, feet_position.y, feet_position.z - PLAYER_HALF_WIDTH},
+    return primitive::AxisAlignedBox{
+        FVec3{
+            feet_position.x - PLAYER_HALF_WIDTH, feet_position.y,
+            feet_position.z - PLAYER_HALF_WIDTH
+        },
         FVec3{
             feet_position.x + PLAYER_HALF_WIDTH, feet_position.y + PLAYER_HEIGHT,
             feet_position.z + PLAYER_HALF_WIDTH
@@ -179,7 +182,7 @@ Aabb PlayerBounds(const FVec3 &feet_position)
 
 FVec3 EyePosition(const MoveState &state)
 {
-    return Add(state.position, FVec3{0.0f, PLAYER_EYE_HEIGHT, 0.0f});
+    return state.position + FVec3{0.0f, PLAYER_EYE_HEIGHT, 0.0f};
 }
 
 void StepMovement(
@@ -190,14 +193,14 @@ void StepMovement(
     state.dodgeCooldown = std::max(0.0f, state.dodgeCooldown - delta_seconds);
     state.padCooldown = std::max(0.0f, state.padCooldown - delta_seconds);
 
-    FVec3 wish = Add(Scale(ForwardXZ(input.yaw), input.forward), Scale(RightXZ(input.yaw), input.right));
+    FVec3 wish = ForwardXZ(input.yaw) * input.forward + RightXZ(input.yaw) * input.right;
     Float wish_length = LengthXZ(wish);
     if (wish_length > 1.0f)
     {
-        wish = Scale(wish, 1.0f / wish_length);
+        wish = wish * (1.0f / wish_length);
         wish_length = 1.0f;
     }
-    const FVec3 wish_direction = wish_length > 0.0f ? Scale(wish, 1.0f / wish_length) : FVec3{0, 0, 0};
+    const FVec3 wish_direction = wish_length > 0.0f ? wish * (1.0f / wish_length) : FVec3{0, 0, 0};
     const Float wish_speed = wish_length * MAX_GROUND_SPEED;
 
     const Bool was_on_ground = state.onGround;
@@ -245,10 +248,10 @@ void StepMovement(
     state.velocity.y -= GRAVITY * delta_seconds;
     const Float falling_speed = -state.velocity.y;
 
-    const FVec3 motion = Scale(state.velocity, delta_seconds);
+    const FVec3 motion = state.velocity * delta_seconds;
     const int substeps =
-        std::max(1, static_cast<int>(std::ceil(Length(motion) / MAX_SUBSTEP)));
-    const FVec3 step = Scale(motion, 1.0f / static_cast<Float>(substeps));
+        std::max(1, static_cast<int>(std::ceil(math::GetLength(motion) / MAX_SUBSTEP)));
+    const FVec3 step = motion * (1.0f / static_cast<Float>(substeps));
     const Bool can_step = state.onGround || was_on_ground;
     for (int i = 0; i < substeps; ++i)
     {
@@ -271,10 +274,10 @@ void StepMovement(
 
     if (state.padCooldown <= 0.0f)
     {
-        const FVec3 probe = Add(state.position, FVec3{0.0f, 0.05f, 0.0f});
+        const FVec3 probe = state.position + FVec3{0.0f, 0.05f, 0.0f};
         for (const JumpPad &pad : arena.jumpPads)
         {
-            if (Contains(pad.trigger, probe))
+            if (primitive::Contains(pad.trigger, probe))
             {
                 state.velocity = pad.launchVelocity;
                 state.onGround = false;

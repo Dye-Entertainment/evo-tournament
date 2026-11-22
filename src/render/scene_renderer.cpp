@@ -39,13 +39,15 @@ void AppendQuad(std::vector<Float> &vertices, std::vector<UInt32> &indices, cons
     indices.insert(indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
 }
 
-void AppendBox(std::vector<Float> &vertices, std::vector<UInt32> &indices, const Aabb &box,
-               const FVec3 &color, const Float grid)
+void AppendBox(
+    std::vector<Float> &vertices, std::vector<UInt32> &indices,
+    const primitive::AxisAlignedBox &box, const FVec3 &color, const Float grid
+)
 {
     const FVec3 &a = box.min;
     const FVec3 &b = box.max;
-    const FVec3 side_color = Scale(color, 0.94f);
-    const FVec3 bottom_color = Scale(color, 0.8f);
+    const FVec3 side_color = color * 0.94f;
+    const FVec3 bottom_color = color * 0.8f;
     const FVec3 top[4] = {color, color, color, color};
     const FVec3 side[4] = {side_color, side_color, side_color, side_color};
     const FVec3 bottom[4] = {bottom_color, bottom_color, bottom_color, bottom_color};
@@ -67,8 +69,8 @@ void AppendBox(std::vector<Float> &vertices, std::vector<UInt32> &indices, const
 
 FVec3 SkyColor(const Float y)
 {
-    const Float t = Clamp(y * 0.5f + 0.5f, 0.0f, 1.0f);
-    return Lerp(SKY_HORIZON, SKY_ZENITH, t);
+    const Float t = math::Clamp(y * 0.5f + 0.5f, 0.0f, 1.0f);
+    return math::GetLerp(SKY_HORIZON, SKY_ZENITH, t);
 }
 
 graphics::Transform MakeTransform(const FVec3 &position, const FVec3 &scale, const Quat &rotation)
@@ -117,7 +119,10 @@ Bool SceneRenderer::Initialize(const Arena &arena)
 
     vertices.clear();
     indices.clear();
-    AppendBox(vertices, indices, Aabb{{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}}, {1, 1, 1}, 0.0f);
+    AppendBox(
+        vertices, indices, primitive::AxisAlignedBox{{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}},
+        {1, 1, 1}, 0.0f
+    );
     cubeMesh = CreateMesh(vertices, indices);
 
     vertices.clear();
@@ -126,12 +131,12 @@ Bool SceneRenderer::Initialize(const Arena &arena)
     constexpr int SLICES = 14;
     for (int stack = 0; stack <= STACKS; ++stack)
     {
-        const Float phi = PI_F * static_cast<Float>(stack) / STACKS;
+        const Float phi = math::PI * static_cast<Float>(stack) / STACKS;
         for (int slice = 0; slice <= SLICES; ++slice)
         {
-            const Float theta = 2.0f * PI_F * static_cast<Float>(slice) / SLICES;
+            const Float theta = 2.0f * math::PI * static_cast<Float>(slice) / SLICES;
             const FVec3 normal{std::sin(phi) * std::cos(theta), std::cos(phi), std::sin(phi) * std::sin(theta)};
-            PushVertex(vertices, Scale(normal, 0.5f), normal, {1, 1, 1}, 0.0f);
+            PushVertex(vertices, normal * 0.5f, normal, {1, 1, 1}, 0.0f);
         }
     }
     for (int stack = 0; stack < STACKS; ++stack)
@@ -200,8 +205,8 @@ void SceneRenderer::SetCamera(
 {
     cameraPosition = eye;
     auto &camera = graphics::Renderer::GetInstance()->GetCamera();
-    const FVec3 forward = DirectionFromAngles(yaw, pitch);
-    camera.view = math::GetLookAtMatrix(eye, Add(eye, forward), FVec3{0.0f, 1.0f, 0.0f});
+    const FVec3 forward = math::GetDirectionFromYawPitch(yaw, pitch);
+    camera.view = math::GetLookAtMatrix(eye, eye + forward, FVec3{0.0f, 1.0f, 0.0f});
     camera.projection = math::GetPerspectiveProjectionMatrix(fov_degrees, aspect, NEAR_PLANE, FAR_PLANE);
     // The engine starts from identity and leaves m[3][3] = 1, which makes clip w = z + 1.
     camera.projection[3][3] = 0.0f;
@@ -231,10 +236,10 @@ void SceneRenderer::DrawShape(
     const Float emissive, const Float yaw, const Float pitch, const Float roll
 )
 {
-    Quat rotation = QuatFromYawPitch(yaw, pitch);
+    Quat rotation = math::GetQuatFromYawPitch(yaw, pitch);
     if (roll != 0.0f)
     {
-        rotation = QuatMul(rotation, QuatAxisAngle(FVec3{0.0f, 0.0f, 1.0f}, roll));
+        rotation = rotation * math::GetAngleAxis(roll, FVec3{0.0f, 0.0f, 1.0f});
     }
     graphics::Renderer::GetInstance()->SubmitOpaqueMesh(
         shape == MeshShape::CUBE ? cubeMesh : sphereMesh, NextMaterial(color, emissive),
@@ -246,16 +251,19 @@ void SceneRenderer::DrawBeam(
     const FVec3 &start, const FVec3 &end, const Float width, const FVec3 &color, const Float emissive
 )
 {
-    const FVec3 delta = Sub(end, start);
-    const Float length = Length(delta);
+    const FVec3 delta = end - start;
+    const Float length = math::GetLength(delta);
     if (length < 0.01f)
     {
         return;
     }
     Float yaw = 0.0f;
     Float pitch = 0.0f;
-    AnglesFromDirection(delta, yaw, pitch);
-    DrawShape(MeshShape::CUBE, Lerp(start, end, 0.5f), {width, width, length}, color, emissive, yaw, pitch);
+    math::GetYawPitchFromDirection(delta, yaw, pitch);
+    DrawShape(
+        MeshShape::CUBE, math::GetLerp(start, end, 0.5f), {width, width, length}, color, emissive,
+        yaw, pitch
+    );
 }
 
 Bool SceneRenderer::Project(

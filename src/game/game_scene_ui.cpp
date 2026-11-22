@@ -18,13 +18,19 @@ const ImU32 DIM = IM_COL32(170, 170, 185, 255);
 
 ImU32 Color(const FVec3 &color, const Float alpha = 1.0f)
 {
-    return IM_COL32(static_cast<int>(Clamp(color.x, 0, 1) * 255), static_cast<int>(Clamp(color.y, 0, 1) * 255),
-                    static_cast<int>(Clamp(color.z, 0, 1) * 255), static_cast<int>(Clamp(alpha, 0, 1) * 255));
+    return IM_COL32(
+        static_cast<int>(math::Clamp(color.x, 0, 1) * 255),
+        static_cast<int>(math::Clamp(color.y, 0, 1) * 255),
+        static_cast<int>(math::Clamp(color.z, 0, 1) * 255),
+        static_cast<int>(math::Clamp(alpha, 0, 1) * 255)
+    );
 }
 
 ImU32 WithAlpha(const ImU32 color, const Float alpha)
 {
-    const auto a = static_cast<ImU32>(Clamp(alpha, 0.0f, 1.0f) * static_cast<Float>((color >> IM_COL32_A_SHIFT) & 0xFF));
+    const auto a = static_cast<ImU32>(
+        math::Clamp(alpha, 0.0f, 1.0f) * static_cast<Float>((color >> IM_COL32_A_SHIFT) & 0xFF)
+    );
     return (color & ~IM_COL32_A_MASK) | (a << IM_COL32_A_SHIFT);
 }
 
@@ -371,7 +377,7 @@ void GameScene::DrawKillFeed(const Float width)
     for (const FeedEntry &entry : feed)
     {
         const Float age = realTime - entry.time;
-        const Float alpha = Clamp((FEED_SECONDS - age) / 0.8f, 0.0f, 1.0f);
+        const Float alpha = math::Clamp((FEED_SECONDS - age) / 0.8f, 0.0f, 1.0f);
         const std::string weapon = std::string("  [") + ShortWeaponName(entry.weapon) + (entry.headshot ? " HS" : "") + "]  ";
         const Bool suicide = entry.killer == entry.victim;
         const Float size = 16.0f;
@@ -404,8 +410,8 @@ void GameScene::DrawNameplates(const Float width, const Float height)
         {
             continue;
         }
-        const FVec3 head = Add(player.renderPosition, FVec3{0.0f, 2.15f, 0.0f});
-        const Float distance = Length(Sub(head, cameraEye));
+        const FVec3 head = player.renderPosition + FVec3{0.0f, 2.15f, 0.0f};
+        const Float distance = math::GetLength(head - cameraEye);
         if (distance > 45.0f || !world.arena.HasLineOfSight(cameraEye, head))
         {
             continue;
@@ -415,8 +421,8 @@ void GameScene::DrawNameplates(const Float width, const Float height)
         {
             continue;
         }
-        const Float alpha = Clamp((45.0f - distance) / 10.0f, 0.0f, 1.0f);
-        const Float size = Clamp(20.0f - distance * 0.15f, 13.0f, 20.0f);
+        const Float alpha = math::Clamp((45.0f - distance) / 10.0f, 0.0f, 1.0f);
+        const Float size = math::Clamp(20.0f - distance * 0.15f, 13.0f, 20.0f);
         Text(list, font, size, ImVec2(screen_position.x, screen_position.y - size), Color(PlayerColor(player.colorIndex), alpha),
              player.name, 0.5f);
     }
@@ -544,7 +550,8 @@ void GameScene::DrawHud()
 
     if (damageFlash > 0.0f)
     {
-        const ImU32 red = IM_COL32(200, 0, 0, static_cast<int>(Clamp(damageFlash, 0.0f, 1.0f) * 110));
+        const ImU32 red =
+            IM_COL32(200, 0, 0, static_cast<int>(math::Clamp(damageFlash, 0.0f, 1.0f) * 110));
         const ImU32 clear = IM_COL32(200, 0, 0, 0);
         const Float edge = 160.0f;
         list->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(edge, height), red, clear, clear, red);
@@ -664,14 +671,14 @@ void GameScene::DrawHud()
     }
     for (const auto &[message, time] : notices)
     {
-        const Float alpha = Clamp((6.0f - (realTime - time)) / 0.8f, 0.0f, 1.0f);
+        const Float alpha = math::Clamp((6.0f - (realTime - time)) / 0.8f, 0.0f, 1.0f);
         Text(list, font, 15.0f, ImVec2(20.0f, notice_y), WithAlpha(WHITE, alpha), message);
         notice_y += 22.0f;
     }
 
     if (realTime < banner.until)
     {
-        const Float alpha = Clamp((banner.until - realTime) / 0.5f, 0.0f, 1.0f);
+        const Float alpha = math::Clamp((banner.until - realTime) / 0.5f, 0.0f, 1.0f);
         Text(list, font, 34.0f, ImVec2(width * 0.5f, height * 0.26f), Color(banner.color, alpha), banner.text, 0.5f);
         if (!banner.subtext.empty())
         {
@@ -680,7 +687,7 @@ void GameScene::DrawHud()
     }
     if (realTime < pickupBanner.until)
     {
-        const Float alpha = Clamp((pickupBanner.until - realTime) / 0.5f, 0.0f, 1.0f);
+        const Float alpha = math::Clamp((pickupBanner.until - realTime) / 0.5f, 0.0f, 1.0f);
         Text(list, font, 20.0f, ImVec2(width * 0.5f, height - 150.0f), Color(pickupBanner.color, alpha), pickupBanner.text, 0.5f);
     }
 

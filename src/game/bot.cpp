@@ -13,8 +13,8 @@ constexpr Float FORGET_SECONDS = 3.0f;
 
 Float TurnToward(const Float current, const Float desired, const Float max_step)
 {
-    const Float delta = WrapAngle(desired - current);
-    return WrapAngle(current + Clamp(delta, -max_step, max_step));
+    const Float delta = math::GetWrappedAngle(desired - current);
+    return math::GetWrappedAngle(current + math::Clamp(delta, -max_step, max_step));
 }
 
 WeaponId ChooseWeapon(const Player &bot, const Bool has_target, const Float distance)
@@ -93,7 +93,9 @@ void ChooseGoal(World &world, Player &bot)
 {
     BotBrain &brain = bot.brain;
     const Arena &arena = world.arena;
-    FVec3 goal = arena.waypoints[world.random.Int(0, static_cast<int>(arena.waypoints.size()) - 1)].position;
+    FVec3 goal =
+        arena.waypoints[world.random.NextInt(0, static_cast<int>(arena.waypoints.size()) - 1)]
+            .position;
     Float best = 0.6f;
 
     if (brain.target >= 0 && world.time - brain.targetLastSeen < 5.0f)
@@ -108,9 +110,9 @@ void ChooseGoal(World &world, Player &bot)
         {
             continue;
         }
-        const Float distance = Length(Sub(pickup.position, bot.move.position));
+        const Float distance = math::GetLength(pickup.position - bot.move.position);
         const Float score = PickupDesire(bot, pickup.kind) * 20.0f / (distance + 12.0f) +
-                            world.random.Range(0.0f, 0.4f);
+                            world.random.NextRange(0.0f, 0.4f);
         if (score > best)
         {
             best = score;
@@ -128,14 +130,14 @@ void ChooseGoal(World &world, Player &bot)
     brain.pathIndex = 0;
     brain.goalPosition = goal;
     brain.hasGoal = true;
-    brain.repathTimer = world.random.Range(6.0f, 10.0f);
+    brain.repathTimer = world.random.NextRange(6.0f, 10.0f);
 }
 
 void Perceive(World &world, const int player_id, Player &bot)
 {
     BotBrain &brain = bot.brain;
     const FVec3 eye = EyePosition(bot.move);
-    const FVec3 view = DirectionFromAngles(bot.yaw, bot.pitch);
+    const FVec3 view = math::GetDirectionFromYawPitch(bot.yaw, bot.pitch);
     int best = -1;
     Float best_score = 1e9f;
     for (int i = 0; i < MAX_PLAYERS; ++i)
@@ -145,16 +147,17 @@ void Perceive(World &world, const int player_id, Player &bot)
         {
             continue;
         }
-        const FVec3 chest = Add(other.move.position, FVec3{0.0f, 1.1f, 0.0f});
-        const FVec3 delta = Sub(chest, eye);
-        const Float distance = Length(delta);
+        const FVec3 chest = other.move.position + FVec3{0.0f, 1.1f, 0.0f};
+        const FVec3 delta = chest - eye;
+        const Float distance = math::GetLength(delta);
         if (distance > SIGHT_RANGE)
         {
             continue;
         }
         const Bool attacked_by =
             bot.lastDamageFrom == i && world.time - bot.lastDamageTime < 2.0f;
-        const Bool in_view = Dot(view, Scale(delta, 1.0f / std::max(distance, 0.01f))) > -0.1f;
+        const Bool in_view =
+            math::GetDotProduct(view, delta * (1.0f / std::max(distance, 0.01f))) > -0.1f;
         if (!in_view && !attacked_by && distance > 10.0f)
         {
             continue;
@@ -222,7 +225,7 @@ void UpdateBot(
     const Bool target_visible = brain.target >= 0 && world.time - brain.targetLastSeen < 0.35f;
     const Player *target = brain.target >= 0 ? &world.players[brain.target] : nullptr;
     const Float target_distance =
-        target != nullptr ? Length(Sub(target->move.position, bot.move.position)) : 0.0f;
+        target != nullptr ? math::GetLength(target->move.position - bot.move.position) : 0.0f;
 
     bot.weapon = ChooseWeapon(bot, target_visible, target_distance);
 
@@ -235,7 +238,7 @@ void UpdateBot(
     while (brain.pathIndex < static_cast<int>(brain.path.size()))
     {
         const FVec3 node = arena.waypoints[brain.path[brain.pathIndex]].position;
-        const Bool reached = LengthXZ(Sub(node, bot.move.position)) < 1.1f &&
+        const Bool reached = LengthXZ(node - bot.move.position) < 1.1f &&
                              std::fabs(node.y - bot.move.position.y) < 1.8f;
         if (!reached)
         {
@@ -245,25 +248,25 @@ void UpdateBot(
         ++brain.pathIndex;
     }
     if (brain.pathIndex >= static_cast<int>(brain.path.size()) &&
-        LengthXZ(Sub(brain.goalPosition, bot.move.position)) < 1.0f)
+        LengthXZ(brain.goalPosition - bot.move.position) < 1.0f)
     {
         brain.hasGoal = false;
     }
 
-    FVec3 to_move_target = Sub(move_target, bot.move.position);
+    FVec3 to_move_target = move_target - bot.move.position;
     to_move_target.y = 0.0f;
-    FVec3 move_direction = Normalize(to_move_target);
+    FVec3 move_direction = math::GetNormalized(to_move_target);
 
     if (target_visible && target != nullptr)
     {
-        FVec3 to_enemy = Sub(target->move.position, bot.move.position);
+        FVec3 to_enemy = target->move.position - bot.move.position;
         to_enemy.y = 0.0f;
-        const FVec3 enemy_direction = Normalize(to_enemy);
+        const FVec3 enemy_direction = math::GetNormalized(to_enemy);
         const FVec3 perpendicular{enemy_direction.z, 0.0f, -enemy_direction.x};
         if (brain.strafeTimer <= 0.0f)
         {
-            brain.strafeDirection = world.random.Unit() < 0.5f ? -1.0f : 1.0f;
-            brain.strafeTimer = world.random.Range(0.5f, 1.4f);
+            brain.strafeDirection = world.random.NextUnit() < 0.5f ? -1.0f : 1.0f;
+            brain.strafeTimer = world.random.NextRange(0.5f, 1.4f);
         }
         Float preferred = 10.0f;
         if (bot.weapon == WeaponId::RAIL)
@@ -284,14 +287,14 @@ void UpdateBot(
         {
             approach = -1.0f;
         }
-        const FVec3 combat = Normalize(
-            Add(Scale(perpendicular, brain.strafeDirection), Scale(enemy_direction, approach * 0.8f))
+        const FVec3 combat = math::GetNormalized(
+            perpendicular * brain.strafeDirection + enemy_direction * (approach * 0.8f)
         );
-        move_direction = Normalize(Add(Scale(combat, 0.7f), Scale(move_direction, 0.3f)));
+        move_direction = math::GetNormalized(combat * 0.7f + move_direction * 0.3f);
 
         if (brain.dodgeTimer <= 0.0f && bot.move.onGround)
         {
-            brain.dodgeTimer = world.random.Range(2.0f, 5.0f) * (1.6f - brain.skill);
+            brain.dodgeTimer = world.random.NextRange(2.0f, 5.0f) * (1.6f - brain.skill);
             input.dodge = brain.strafeDirection > 0.0f ? DodgeDirection::RIGHT : DodgeDirection::LEFT;
         }
     }
@@ -301,13 +304,13 @@ void UpdateBot(
     FVec3 aim_point;
     if (target_visible && target != nullptr)
     {
-        aim_point = Add(target->move.position, FVec3{0.0f, 1.15f, 0.0f});
+        aim_point = target->move.position + FVec3{0.0f, 1.15f, 0.0f};
         if (bot.weapon == WeaponId::NOVA)
         {
             const Float travel = target_distance / GetWeaponDef(WeaponId::NOVA).projectileSpeed;
-            FVec3 lead = Scale(target->move.velocity, travel * brain.skill);
+            FVec3 lead = target->move.velocity * (travel * brain.skill);
             lead.y = 0.0f;
-            aim_point = Add(target->move.position, lead);
+            aim_point = target->move.position + lead;
             aim_point.y += target->move.onGround ? 0.3f : 1.0f;
         }
         else if (bot.weapon == WeaponId::RAIL && brain.skill > 0.6f)
@@ -315,15 +318,15 @@ void UpdateBot(
             aim_point.y = target->move.position.y + 1.45f;
         }
         const Float error_limit = 0.10f * (1.0f - brain.skill) + 0.012f;
-        brain.aimErrorYaw = Clamp(
-            brain.aimErrorYaw + world.random.Range(-1.0f, 1.0f) * delta_seconds * 0.8f,
+        brain.aimErrorYaw = math::Clamp(
+            brain.aimErrorYaw + world.random.NextRange(-1.0f, 1.0f) * delta_seconds * 0.8f,
             -error_limit, error_limit
         );
-        brain.aimErrorPitch = Clamp(
-            brain.aimErrorPitch + world.random.Range(-1.0f, 1.0f) * delta_seconds * 0.5f,
+        brain.aimErrorPitch = math::Clamp(
+            brain.aimErrorPitch + world.random.NextRange(-1.0f, 1.0f) * delta_seconds * 0.5f,
             -error_limit * 0.6f, error_limit * 0.6f
         );
-        AnglesFromDirection(Sub(aim_point, eye), desired_yaw, desired_pitch);
+        math::GetYawPitchFromDirection(aim_point - eye, desired_yaw, desired_pitch);
         desired_yaw += brain.aimErrorYaw;
         desired_pitch += brain.aimErrorPitch;
     }
@@ -334,11 +337,11 @@ void UpdateBot(
 
     const Float turn = (2.5f + 7.0f * brain.skill) * delta_seconds;
     bot.yaw = TurnToward(bot.yaw, desired_yaw, turn);
-    bot.pitch = Clamp(TurnToward(bot.pitch, desired_pitch, turn), -1.45f, 1.45f);
+    bot.pitch = math::Clamp(TurnToward(bot.pitch, desired_pitch, turn), -1.45f, 1.45f);
 
     input.yaw = bot.yaw;
-    input.forward = Dot(move_direction, ForwardXZ(bot.yaw));
-    input.right = Dot(move_direction, RightXZ(bot.yaw));
+    input.forward = math::GetDotProduct(move_direction, ForwardXZ(bot.yaw));
+    input.right = math::GetDotProduct(move_direction, RightXZ(bot.yaw));
 
     const Bool wants_move = LengthXZ(move_direction) > 0.1f;
     if (wants_move && bot.move.onGround && LengthXZ(bot.move.velocity) < 1.5f)
@@ -359,7 +362,7 @@ void UpdateBot(
         brain.path.clear();
         brain.stuckTimer = 0.0f;
     }
-    if (target_visible && bot.move.onGround && world.random.Unit() < 0.004f)
+    if (target_visible && bot.move.onGround && world.random.NextUnit() < 0.004f)
     {
         input.jump = true;
     }
@@ -370,8 +373,8 @@ void UpdateBot(
         {
             return;
         }
-        const FVec3 view = DirectionFromAngles(bot.yaw, bot.pitch);
-        const FVec3 exact = Normalize(Sub(aim_point, eye));
+        const FVec3 view = math::GetDirectionFromYawPitch(bot.yaw, bot.pitch);
+        const FVec3 exact = math::GetNormalized(aim_point - eye);
         Float tolerance = 0.12f;
         if (bot.weapon == WeaponId::NOVA)
         {
@@ -381,7 +384,7 @@ void UpdateBot(
         {
             tolerance = 0.04f;
         }
-        if (std::acos(Clamp(Dot(view, exact), -1.0f, 1.0f)) < tolerance)
+        if (std::acos(math::Clamp(math::GetDotProduct(view, exact), -1.0f, 1.0f)) < tolerance)
         {
             fire.fire = true;
             fire.origin = eye;

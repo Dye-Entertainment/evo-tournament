@@ -28,7 +28,7 @@ constexpr Float PAD_VERTICAL_SPEED = 18.0f;
 
 void Arena::AddBox(const FVec3 &min, const FVec3 &max, const FVec3 &color, const Float grid)
 {
-    boxes.push_back(ArenaBox{Aabb{min, max}, color, grid});
+    boxes.push_back(ArenaBox{primitive::AxisAlignedBox{min, max}, color, grid});
 }
 
 int Arena::AddWaypoint(const FVec3 &position)
@@ -121,12 +121,14 @@ void Arena::BuildFoundry()
             {center.x - 1.0f, 0.0f, center.z - 1.0f}, {center.x + 1.0f, 0.15f, center.z + 1.0f},
             PAD_COLOR, 0.0f
         );
-        jumpPads.push_back(JumpPad{
-            Aabb{
-                Sub(center, FVec3{1.0f, 0.0f, 1.0f}), Add(center, FVec3{1.0f, 0.7f, 1.0f})
-            },
-            Add(Scale(direction, PAD_HORIZONTAL_SPEED), FVec3{0.0f, PAD_VERTICAL_SPEED, 0.0f})
-        });
+        jumpPads.push_back(
+            JumpPad{
+                primitive::AxisAlignedBox{
+                    center - FVec3{1.0f, 0.0f, 1.0f}, center + FVec3{1.0f, 0.7f, 1.0f}
+                },
+                direction * PAD_HORIZONTAL_SPEED + FVec3{0.0f, PAD_VERTICAL_SPEED, 0.0f}
+            }
+        );
     };
     add_pad({20, 0, 0}, {1, 0, 0});
     add_pad({-20, 0, 0}, {-1, 0, 0});
@@ -268,9 +270,10 @@ Bool Arena::RayCast(
     {
         Float distance = 0.0f;
         FVec3 normal;
-        if (RayAabb(origin, direction, box.bounds, best, distance, normal) && distance <= best)
+        if (primitive::IntersectRay(box.bounds, origin, direction, best, distance, normal) &&
+            distance <= best)
         {
-            if (Contains(box.bounds, origin))
+            if (primitive::Contains(box.bounds, origin))
             {
                 continue;
             }
@@ -285,21 +288,21 @@ Bool Arena::RayCast(
 
 Bool Arena::HasLineOfSight(const FVec3 &a, const FVec3 &b) const
 {
-    const FVec3 delta = Sub(b, a);
-    const Float distance = Length(delta);
+    const FVec3 delta = b - a;
+    const Float distance = math::GetLength(delta);
     if (distance < 1e-4f)
     {
         return true;
     }
     RayHit hit;
-    return !RayCast(a, Scale(delta, 1.0f / distance), distance - 0.02f, hit);
+    return !RayCast(a, delta * (1.0f / distance), distance - 0.02f, hit);
 }
 
-Bool Arena::IsBlocked(const Aabb &box) const
+Bool Arena::IsBlocked(const primitive::AxisAlignedBox &box) const
 {
     for (const ArenaBox &arena_box : boxes)
     {
-        if (Overlaps(box, arena_box.bounds))
+        if (primitive::Overlaps(box, arena_box.bounds))
         {
             return true;
         }
@@ -311,17 +314,16 @@ int Arena::FindNearestWaypoint(const FVec3 &position, const Bool require_sight) 
 {
     int best_index = -1;
     Float best_score = std::numeric_limits<Float>::max();
-    const FVec3 eye = Add(position, FVec3{0.0f, 1.0f, 0.0f});
+    const FVec3 eye = position + FVec3{0.0f, 1.0f, 0.0f};
     for (int i = 0; i < static_cast<int>(waypoints.size()); ++i)
     {
-        const FVec3 delta = Sub(waypoints[i].position, position);
+        const FVec3 delta = waypoints[i].position - position;
         const Float score = LengthXZ(delta) + std::fabs(delta.y) * 3.0f;
         if (score >= best_score)
         {
             continue;
         }
-        if (require_sight &&
-            !HasLineOfSight(eye, Add(waypoints[i].position, FVec3{0.0f, 1.0f, 0.0f})))
+        if (require_sight && !HasLineOfSight(eye, waypoints[i].position + FVec3{0.0f, 1.0f, 0.0f}))
         {
             continue;
         }
@@ -354,14 +356,15 @@ std::vector<int> Arena::FindPath(const int from, const int to) const
         }
         for (const int next : waypoints[current].links)
         {
-            const Float step = Length(Sub(waypoints[next].position, waypoints[current].position));
+            const Float step =
+                math::GetLength(waypoints[next].position - waypoints[current].position);
             const Float candidate = cost[current] + step;
             if (candidate < cost[next])
             {
                 cost[next] = candidate;
                 previous[next] = current;
                 const Float heuristic =
-                    Length(Sub(waypoints[to].position, waypoints[next].position));
+                    math::GetLength(waypoints[to].position - waypoints[next].position);
                 open.push({candidate + heuristic, next});
             }
         }

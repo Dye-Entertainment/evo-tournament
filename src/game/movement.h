@@ -46,7 +46,7 @@ struct MoveEvents
     Float landingSpeed = 0.0f;
 };
 
-Aabb PlayerBounds(const FVec3 &feet_position);
+primitive::AxisAlignedBox PlayerBounds(const FVec3 &feet_position);
 
 FVec3 EyePosition(const MoveState &state);
 

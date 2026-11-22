@@ -57,6 +57,6 @@ class Sfx final
     std::array<Pool, static_cast<size_t>(Sound::COUNT)> pools;
     FVec3 listenerPosition;
     Float listenerYaw = 0.0f;
-    Random random;
+    math::Random random;
 };
 } // namespace evo

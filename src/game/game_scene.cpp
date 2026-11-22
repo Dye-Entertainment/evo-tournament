@@ -60,8 +60,8 @@ Float *globalWheel = nullptr;
 
 Float HorizontalToVerticalFov(const Float horizontal_degrees, const Float aspect)
 {
-    const Float horizontal = horizontal_degrees * PI_F / 180.0f;
-    return 2.0f * std::atan(std::tan(horizontal * 0.5f) / aspect) * 180.0f / PI_F;
+    const Float horizontal = horizontal_degrees * math::PI / 180.0f;
+    return 2.0f * std::atan(std::tan(horizontal * 0.5f) / aspect) * 180.0f / math::PI;
 }
 
 Sound PickupSound(const PickupKind kind)
@@ -132,7 +132,10 @@ GameScene::~GameScene()
 void GameScene::LoadOptions()
 {
     char default_name[32];
-    std::snprintf(default_name, sizeof(default_name), "Player%03u", HashU32(static_cast<UInt32>(SDL_GetTicks())) % 1000);
+    std::snprintf(
+        default_name, sizeof(default_name), "Player%03u",
+        math::GetHash(static_cast<UInt32>(SDL_GetTicks())) % 1000
+    );
     options.name = bridge::LoadSetting("name", default_name);
     options.sensitivity = std::strtof(bridge::LoadSetting("sensitivity", "1.0").c_str(), nullptr);
     options.fieldOfView = std::strtof(bridge::LoadSetting("fov", "100").c_str(), nullptr);
@@ -143,13 +146,13 @@ void GameScene::LoadOptions()
     options.match.fragLimit = static_cast<Int16>(std::atoi(bridge::LoadSetting("fragLimit", "15").c_str()));
     options.match.timeLimitSeconds = std::strtof(bridge::LoadSetting("timeLimit", "480").c_str(), nullptr);
 
-    options.sensitivity = Clamp(options.sensitivity, 0.1f, 5.0f);
-    options.fieldOfView = Clamp(options.fieldOfView, 80.0f, 120.0f);
-    options.volume = Clamp(options.volume, 0.0f, 1.0f);
+    options.sensitivity = math::Clamp(options.sensitivity, 0.1f, 5.0f);
+    options.fieldOfView = math::Clamp(options.fieldOfView, 80.0f, 120.0f);
+    options.volume = math::Clamp(options.volume, 0.0f, 1.0f);
     options.match.botCount = std::clamp(options.match.botCount, 0, MAX_PLAYERS - 1);
-    options.match.botSkill = Clamp(options.match.botSkill, 0.0f, 1.0f);
+    options.match.botSkill = math::Clamp(options.match.botSkill, 0.0f, 1.0f);
     options.match.fragLimit = std::clamp<Int16>(options.match.fragLimit, 5, 100);
-    options.match.timeLimitSeconds = Clamp(options.match.timeLimitSeconds, 120.0f, 1800.0f);
+    options.match.timeLimitSeconds = math::Clamp(options.match.timeLimitSeconds, 120.0f, 1800.0f);
 }
 
 void GameScene::SaveOptions() const
@@ -466,7 +469,8 @@ std::vector<int> GameScene::RankedPlayers() const
 
 void GameScene::Update(const double elapsed_seconds)
 {
-    const Float delta_seconds = Clamp(static_cast<Float>(elapsed_seconds), 0.0005f, MAX_DELTA);
+    const Float delta_seconds =
+        math::Clamp(static_cast<Float>(elapsed_seconds), 0.0005f, MAX_DELTA);
     realTime += delta_seconds;
     EnsureImGui();
     const InputFrame input = ReadInput(delta_seconds);
@@ -568,8 +572,10 @@ void GameScene::ApplyLook(Player &player, const InputFrame &input) const
         return;
     }
     const Float scale = LOOK_SCALE * options.sensitivity;
-    player.yaw = WrapAngle(player.yaw + input.lookX * scale);
-    player.pitch = Clamp(player.pitch - input.lookY * scale * (options.invertY ? -1.0f : 1.0f), -MAX_PITCH, MAX_PITCH);
+    player.yaw = math::GetWrappedAngle(player.yaw + input.lookX * scale);
+    player.pitch = math::Clamp(
+        player.pitch - input.lookY * scale * (options.invertY ? -1.0f : 1.0f), -MAX_PITCH, MAX_PITCH
+    );
 }
 
 void GameScene::SelectWeapon(Player &player, const WeaponId weapon)
@@ -661,8 +667,10 @@ void GameScene::UpdateLocalPlayerHost(const Float delta_seconds, const InputFram
             {
                 fire.fire = true;
                 fire.origin = EyePosition(player.move);
-                fire.direction = world.ApplySpread(player, DirectionFromAngles(player.yaw, player.pitch),
-                                                   world.random.Next());
+                fire.direction = world.ApplySpread(
+                    player, math::GetDirectionFromYawPitch(player.yaw, player.pitch),
+                    world.random.Next()
+                );
             }
         }
         if (!player.alive && input.firePressed && fireArmed && !menuOpen)
@@ -679,7 +687,7 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
     world.localMoveEvents = MoveEvents{};
     for (Projectile &projectile : world.projectiles)
     {
-        projectile.position = Add(projectile.position, Scale(projectile.velocity, delta_seconds));
+        projectile.position = projectile.position + projectile.velocity * delta_seconds;
     }
     if (session.localPlayer < 0)
     {
@@ -719,8 +727,9 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
     {
         world.ConsumeShot(player);
         const FVec3 origin = EyePosition(player.move);
-        const FVec3 direction = world.ApplySpread(player, DirectionFromAngles(player.yaw, player.pitch),
-                                                  world.random.Next());
+        const FVec3 direction = world.ApplySpread(
+            player, math::GetDirectionFromYawPitch(player.yaw, player.pitch), world.random.Next()
+        );
         session.SendFire(player.weapon, origin, direction);
         const WeaponDef &def = GetWeaponDef(player.weapon);
         if (def.hitscan)
@@ -730,7 +739,7 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
         }
         else
         {
-            HandleShot(session.localPlayer, player.weapon, origin, Add(origin, direction));
+            HandleShot(session.localPlayer, player.weapon, origin, origin + direction);
         }
     }
 }
@@ -756,8 +765,8 @@ void GameScene::PlayLocalMoveSounds()
     }
     if (events.landingSpeed > 6.0f)
     {
-        sfx.Play(Sound::LAND, Clamp(events.landingSpeed / 18.0f, 0.2f, 0.9f));
-        landDip = Clamp(events.landingSpeed / 60.0f, 0.0f, 0.25f);
+        sfx.Play(Sound::LAND, math::Clamp(events.landingSpeed / 18.0f, 0.2f, 0.9f));
+        landDip = math::Clamp(events.landingSpeed / 60.0f, 0.0f, 0.25f);
     }
 }
 
@@ -783,9 +792,9 @@ void GameScene::HandleShot(const int shooter, const WeaponId weapon, const FVec3
     {
         Player &player = world.players[shooter];
         player.fireFlash = 0.08f;
-        const FVec3 forward = DirectionFromAngles(player.renderYaw, player.renderPitch);
-        muzzle = Add(Add(player.renderPosition, FVec3{0.0f, 1.3f, 0.0f}),
-                     Add(Scale(RightXZ(player.renderYaw), 0.28f), Scale(forward, 0.7f)));
+        const FVec3 forward = math::GetDirectionFromYawPitch(player.renderYaw, player.renderPitch);
+        muzzle = player.renderPosition + FVec3{0.0f, 1.3f, 0.0f} +
+                 (RightXZ(player.renderYaw) * 0.28f + forward * 0.7f);
     }
 
     const WeaponDef &def = GetWeaponDef(weapon);
@@ -793,13 +802,13 @@ void GameScene::HandleShot(const int shooter, const WeaponId weapon, const FVec3
     if (weapon == WeaponId::RIFLE)
     {
         effects.AddBeam(muzzle, end, def.color, 0.035f, 0.07f);
-        effects.AddSparks(end, Normalize(Sub(origin, end)), def.color, 3);
+        effects.AddSparks(end, math::GetNormalized(origin - end), def.color, 3);
     }
     else if (weapon == WeaponId::RAIL)
     {
         effects.AddBeam(muzzle, end, def.color, 0.16f, 0.8f);
         effects.AddBeam(muzzle, end, {1.0f, 0.9f, 1.0f}, 0.05f, 0.35f);
-        effects.AddSparks(end, Normalize(Sub(origin, end)), def.color, 12);
+        effects.AddSparks(end, math::GetNormalized(origin - end), def.color, 12);
         sound = Sound::RAIL;
     }
     else
@@ -836,8 +845,8 @@ void GameScene::HandleEvent(const GameEvent &event)
         if (!demo)
         {
             sfx.PlayAt(Sound::EXPLOSION, event.p0, 1.0f);
-            const Float distance = Length(Sub(event.p0, cameraEye));
-            shake = std::max(shake, Clamp(1.0f - distance / 12.0f, 0.0f, 1.0f) * 0.6f);
+            const Float distance = math::GetLength(event.p0 - cameraEye);
+            shake = std::max(shake, math::Clamp(1.0f - distance / 12.0f, 0.0f, 1.0f) * 0.6f);
         }
         break;
     }
@@ -990,17 +999,20 @@ void GameScene::UpdateRenderState(const Float delta_seconds)
         }
         else if (client || player.control == PlayerControl::REMOTE)
         {
-            const Float age = client ? Clamp(world.time - player.lastHeard, 0.0f, 0.1f) : 0.0f;
-            const FVec3 target = Add(player.move.position, Scale(player.move.velocity, age));
-            if (Length(Sub(target, player.renderPosition)) > 4.0f)
+            const Float age =
+                client ? math::Clamp(world.time - player.lastHeard, 0.0f, 0.1f) : 0.0f;
+            const FVec3 target = player.move.position + player.move.velocity * age;
+            if (math::GetLength(target - player.renderPosition) > 4.0f)
             {
                 player.renderPosition = target;
             }
             else
             {
-                player.renderPosition = Lerp(player.renderPosition, target, blend);
+                player.renderPosition = math::GetLerp(player.renderPosition, target, blend);
             }
-            player.renderYaw = WrapAngle(player.renderYaw + WrapAngle(player.yaw - player.renderYaw) * blend);
+            player.renderYaw = math::GetWrappedAngle(
+                player.renderYaw + math::GetWrappedAngle(player.yaw - player.renderYaw) * blend
+            );
             player.renderPitch += (player.pitch - player.renderPitch) * blend;
         }
         else
@@ -1016,8 +1028,10 @@ void GameScene::UpdateRenderState(const Float delta_seconds)
     }
     for (const Projectile &projectile : world.projectiles)
     {
-        effects.AddSparks(projectile.position, Scale(Normalize(projectile.velocity), -1.0f),
-                          GetWeaponDef(WeaponId::NOVA).color, 1);
+        effects.AddSparks(
+            projectile.position, math::GetNormalized(projectile.velocity) * -1.0f,
+            GetWeaponDef(WeaponId::NOVA).color, 1
+        );
     }
 }
 
@@ -1028,7 +1042,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
     {
         const Float angle = realTime * 0.08f;
         cameraEye = FVec3{std::sin(angle) * 23.0f, 13.0f, std::cos(angle) * 23.0f};
-        AnglesFromDirection(Sub(FVec3{0.0f, 2.0f, 0.0f}, cameraEye), cameraYaw, cameraPitch);
+        math::GetYawPitchFromDirection(FVec3{0.0f, 2.0f, 0.0f} - cameraEye, cameraYaw, cameraPitch);
         return;
     }
     if (player->alive)
@@ -1038,21 +1052,26 @@ void GameScene::UpdateCamera(const Float delta_seconds)
         {
             bobPhase += delta_seconds * speed * 1.15f;
         }
-        const Float bob = player->move.onGround ? std::sin(bobPhase * 2.0f) * 0.035f * Clamp(speed / 9.5f, 0.0f, 1.0f) : 0.0f;
-        cameraEye = Add(EyePosition(player->move), FVec3{0.0f, bob - landDip, 0.0f});
+        const Float bob = player->move.onGround ? std::sin(bobPhase * 2.0f) * 0.035f *
+                                                      math::Clamp(speed / 9.5f, 0.0f, 1.0f)
+                                                : 0.0f;
+        cameraEye = EyePosition(player->move) + FVec3{0.0f, bob - landDip, 0.0f};
         cameraYaw = player->yaw;
         cameraPitch = player->pitch;
     }
     else
     {
-        const Float rise = Clamp(realTime - deathStartTime, 0.0f, 1.5f);
-        cameraEye = Add(deathPosition, FVec3{0.0f, 1.0f + rise * 1.4f, 0.0f});
-        cameraYaw = WrapAngle(cameraYaw + delta_seconds * 0.25f);
+        const Float rise = math::Clamp(realTime - deathStartTime, 0.0f, 1.5f);
+        cameraEye = deathPosition + FVec3{0.0f, 1.0f + rise * 1.4f, 0.0f};
+        cameraYaw = math::GetWrappedAngle(cameraYaw + delta_seconds * 0.25f);
         cameraPitch = -0.55f;
     }
     if (shake > 0.0f)
     {
-        cameraEye = Add(cameraEye, FVec3{world.random.Range(-1, 1), world.random.Range(-1, 1), world.random.Range(-1, 1)} * (shake * 0.08f));
+        cameraEye = cameraEye + FVec3{
+                                    world.random.NextRange(-1, 1), world.random.NextRange(-1, 1),
+                                    world.random.NextRange(-1, 1)
+                                } * (shake * 0.08f);
     }
 }
 

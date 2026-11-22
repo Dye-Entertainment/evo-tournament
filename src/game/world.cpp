@@ -202,11 +202,12 @@ FVec3 World::ApplySpread(const Player &player, const FVec3 &direction, const UIn
         return direction;
     }
     const FVec3 up_hint = std::fabs(direction.y) > 0.95f ? FVec3{1, 0, 0} : FVec3{0, 1, 0};
-    const FVec3 right = Normalize(Cross(up_hint, direction));
-    const FVec3 up = Cross(direction, right);
-    const Float a = (static_cast<Float>(HashU32(seed) & 0xFFFF) / 65535.0f - 0.5f) * 2.0f;
-    const Float b = (static_cast<Float>(HashU32(seed * 7919U + 17U) & 0xFFFF) / 65535.0f - 0.5f) * 2.0f;
-    return Normalize(Add(direction, Add(Scale(right, a * spread), Scale(up, b * spread))));
+    const FVec3 right = math::GetNormalized(math::GetCrossProduct(up_hint, direction));
+    const FVec3 up = math::GetCrossProduct(direction, right);
+    const Float a = (static_cast<Float>(math::GetHash(seed) & 0xFFFF) / 65535.0f - 0.5f) * 2.0f;
+    const Float b =
+        (static_cast<Float>(math::GetHash(seed * 7919U + 17U) & 0xFFFF) / 65535.0f - 0.5f) * 2.0f;
+    return math::GetNormalized(direction + (right * (a * spread) + up * (b * spread)));
 }
 
 World::TraceResult World::Trace(
@@ -228,10 +229,12 @@ World::TraceResult World::Trace(
         {
             continue;
         }
-        const Aabb bounds = Expand(PlayerBounds(player.move.position), FVec3{0.08f, 0.05f, 0.08f});
+        const primitive::AxisAlignedBox bounds =
+            primitive::GetExpanded(PlayerBounds(player.move.position), FVec3{0.08f, 0.05f, 0.08f});
         Float distance = 0.0f;
         FVec3 normal;
-        if (RayAabb(origin, direction, bounds, best, distance, normal) && distance < best)
+        if (primitive::IntersectRay(bounds, origin, direction, best, distance, normal) &&
+            distance < best)
         {
             best = distance;
             result.hitPlayer = i;
@@ -240,7 +243,7 @@ World::TraceResult World::Trace(
             result.headshot = hit_height > PLAYER_HEAD_LINE;
         }
     }
-    result.end = Add(origin, Scale(direction, best));
+    result.end = origin + direction * best;
     return result;
 }
 
@@ -264,7 +267,7 @@ void World::HostFire(const int player_id, const FVec3 &origin, const FVec3 &dire
         {
             const Float multiplier = trace.headshot ? def.headshotMultiplier : 1.0f;
             const auto amount = static_cast<Int16>(static_cast<Float>(def.damage) * multiplier);
-            ApplyImpulse(trace.hitPlayer, Scale(direction, def.knockback));
+            ApplyImpulse(trace.hitPlayer, direction * def.knockback);
             Damage(trace.hitPlayer, player_id, amount, shooter.weapon, trace.headshot && def.headshotMultiplier > 1.0f);
         }
         return;
@@ -277,11 +280,11 @@ void World::HostFire(const int player_id, const FVec3 &origin, const FVec3 &dire
         nextProjectileId = 1;
     }
     projectile.owner = static_cast<UInt8>(player_id);
-    projectile.position = Add(origin, Scale(direction, 0.5f));
-    projectile.velocity = Scale(direction, def.projectileSpeed);
+    projectile.position = origin + direction * 0.5f;
+    projectile.velocity = direction * def.projectileSpeed;
     projectile.life = 4.0f;
     projectiles.push_back(projectile);
-    shot.p1 = Add(origin, direction);
+    shot.p1 = origin + direction;
     EmitEvent(shot);
 }
 
@@ -460,9 +463,9 @@ void World::StepProjectiles(const Float delta_seconds)
     for (Projectile projectile : projectiles)
     {
         projectile.life -= delta_seconds;
-        const FVec3 motion = Scale(projectile.velocity, delta_seconds);
-        const Float distance = Length(motion);
-        const FVec3 direction = Scale(motion, distance > 0.0f ? 1.0f / distance : 0.0f);
+        const FVec3 motion = projectile.velocity * delta_seconds;
+        const Float distance = math::GetLength(motion);
+        const FVec3 direction = motion * (distance > 0.0f ? 1.0f / distance : 0.0f);
         Float best = distance;
         Bool hit = false;
         RayHit arena_hit;
@@ -478,10 +481,14 @@ void World::StepProjectiles(const Float delta_seconds)
             {
                 continue;
             }
-            const Aabb bounds = Expand(PlayerBounds(player.move.position), FVec3{0.15f, 0.1f, 0.15f});
+            const primitive::AxisAlignedBox bounds = primitive::GetExpanded(
+                PlayerBounds(player.move.position), FVec3{0.15f, 0.1f, 0.15f}
+            );
             Float player_distance = 0.0f;
             FVec3 normal;
-            if (RayAabb(projectile.position, direction, bounds, best, player_distance, normal) &&
+            if (primitive::IntersectRay(
+                    bounds, projectile.position, direction, best, player_distance, normal
+                ) &&
                 player_distance <= best)
             {
                 best = player_distance;
@@ -491,12 +498,12 @@ void World::StepProjectiles(const Float delta_seconds)
         if (hit || projectile.life <= 0.0f)
         {
             const FVec3 position =
-                hit ? Add(projectile.position, Scale(direction, std::max(0.0f, best - 0.05f)))
+                hit ? projectile.position + direction * std::max(0.0f, best - 0.05f)
                     : projectile.position;
             Explode(projectile, position);
             continue;
         }
-        projectile.position = Add(projectile.position, motion);
+        projectile.position = projectile.position + motion;
         survivors.push_back(projectile);
     }
     projectiles.swap(survivors);
@@ -518,18 +525,18 @@ void World::Explode(const Projectile &projectile, const FVec3 &position)
         {
             continue;
         }
-        const Aabb bounds = PlayerBounds(player.move.position);
+        const primitive::AxisAlignedBox bounds = PlayerBounds(player.move.position);
         const FVec3 closest{
-            Clamp(position.x, bounds.min.x, bounds.max.x),
-            Clamp(position.y, bounds.min.y, bounds.max.y),
-            Clamp(position.z, bounds.min.z, bounds.max.z)
+            math::Clamp(position.x, bounds.min.x, bounds.max.x),
+            math::Clamp(position.y, bounds.min.y, bounds.max.y),
+            math::Clamp(position.z, bounds.min.z, bounds.max.z)
         };
-        const Float distance = Length(Sub(closest, position));
+        const Float distance = math::GetLength(closest - position);
         if (distance > def.splashRadius)
         {
             continue;
         }
-        const FVec3 center = Add(player.move.position, FVec3{0.0f, 0.9f, 0.0f});
+        const FVec3 center = player.move.position + FVec3{0.0f, 0.9f, 0.0f};
         if (distance > 0.6f && !arena.HasLineOfSight(position, center))
         {
             continue;
@@ -541,8 +548,9 @@ void World::Explode(const Projectile &projectile, const FVec3 &position)
         {
             amount *= 0.45f;
         }
-        const FVec3 push_direction = Normalize(Add(Sub(center, position), FVec3{0.0f, 0.4f, 0.0f}));
-        ApplyImpulse(i, Scale(push_direction, def.knockback * scale * (self ? 1.25f : 1.0f)));
+        const FVec3 push_direction =
+            math::GetNormalized(center - position + FVec3{0.0f, 0.4f, 0.0f});
+        ApplyImpulse(i, push_direction * (def.knockback * scale * (self ? 1.25f : 1.0f)));
         Damage(i, projectile.owner, static_cast<Int16>(amount), WeaponId::NOVA, false);
     }
 }
@@ -551,13 +559,13 @@ void World::ApplyImpulse(const int player_id, const FVec3 &impulse)
 {
     Player &player = players[player_id];
     FVec3 push = impulse;
-    if (Length(push) > 3.0f)
+    if (math::GetLength(push) > 3.0f)
     {
         push.y = std::max(push.y, 2.5f);
     }
     if (player.control == PlayerControl::LOCAL || player.control == PlayerControl::BOT)
     {
-        player.move.velocity = Add(player.move.velocity, push);
+        player.move.velocity = player.move.velocity + push;
         if (push.y > 0.5f)
         {
             player.move.onGround = false;
@@ -597,7 +605,7 @@ void World::Damage(
     event.a = ToEventPlayer(attacker);
     event.b = static_cast<UInt8>(victim);
     event.c = static_cast<UInt8>(std::min<int>(amount, 255));
-    event.p0 = Add(player.move.position, FVec3{0.0f, 1.2f, 0.0f});
+    event.p0 = player.move.position + FVec3{0.0f, 1.2f, 0.0f};
     EmitEvent(event);
 
     if (player.health <= 0)
@@ -757,7 +765,7 @@ void World::StepPickups(const Float delta_seconds)
             }
             continue;
         }
-        const FVec3 pickup_center = Add(pickup.position, FVec3{0.0f, 0.6f, 0.0f});
+        const FVec3 pickup_center = pickup.position + FVec3{0.0f, 0.6f, 0.0f};
         for (int i = 0; i < MAX_PLAYERS; ++i)
         {
             Player &player = players[i];
@@ -765,8 +773,8 @@ void World::StepPickups(const Float delta_seconds)
             {
                 continue;
             }
-            const FVec3 center = Add(player.move.position, FVec3{0.0f, 0.9f, 0.0f});
-            if (Length(Sub(center, pickup_center)) > PICKUP_RADIUS)
+            const FVec3 center = player.move.position + FVec3{0.0f, 0.9f, 0.0f};
+            if (math::GetLength(center - pickup_center) > PICKUP_RADIUS)
             {
                 continue;
             }
@@ -803,13 +811,13 @@ FVec3 World::PickSpawn(const int player_id, Float &yaw)
             {
                 continue;
             }
-            nearest = std::min(nearest, Length(Sub(player.move.position, spawn)));
+            nearest = std::min(nearest, math::GetLength(player.move.position - spawn));
         }
         if (nearest < 1.5f)
         {
             continue;
         }
-        const Float score = nearest + random.Range(0.0f, 8.0f);
+        const Float score = nearest + random.NextRange(0.0f, 8.0f);
         if (score > best_score)
         {
             best_score = score;

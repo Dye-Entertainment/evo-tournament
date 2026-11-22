@@ -23,14 +23,14 @@ enum class PickupKind : UInt8
 
 struct ArenaBox
 {
-    Aabb bounds;
+    primitive::AxisAlignedBox bounds;
     FVec3 color;
     Float grid = 1.0f;
 };
 
 struct JumpPad
 {
-    Aabb trigger;
+    primitive::AxisAlignedBox trigger;
     FVec3 launchVelocity;
 };
 
@@ -70,7 +70,7 @@ class Arena final
     Bool HasLineOfSight(const FVec3 &a, const FVec3 &b) const;
 
     [[nodiscard]]
-    Bool IsBlocked(const Aabb &box) const;
+    Bool IsBlocked(const primitive::AxisAlignedBox &box) const;
 
     [[nodiscard]]
     int FindNearestWaypoint(const FVec3 &position, Bool require_sight) const;

@@ -50,7 +50,9 @@ class ByteWriter final
 
     void Angle(const Float radians)
     {
-        I16(static_cast<Int16>(Clamp(WrapAngle(radians) / PI_F, -1.0f, 1.0f) * 32767.0f));
+        I16(static_cast<Int16>(
+            math::Clamp(math::GetWrappedAngle(radians) / math::PI, -1.0f, 1.0f) * 32767.0f
+        ));
     }
 
     void String(const std::string &value)
@@ -117,7 +119,7 @@ class ByteReader final
 
     Float Angle()
     {
-        return static_cast<Float>(I16()) / 32767.0f * PI_F;
+        return static_cast<Float>(I16()) / 32767.0f * math::PI;
     }
 
     std::string String()
