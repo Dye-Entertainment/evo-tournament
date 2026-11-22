@@ -1,6 +1,5 @@
 #include "net/session.h"
 #include "game/bot.h"
-#include "net/byte_stream.h"
 
 namespace evo::net
 {
@@ -33,6 +32,17 @@ Bool IsSane(const FVec3 &v)
 }
 } // namespace
 
+const ::net::TransportSettings &GetTransportSettings()
+{
+    static const ::net::TransportSettings settings{"evo-tourney-v1", 27777, 10.0f};
+    return settings;
+}
+
+std::string DefaultHostAddress()
+{
+    return ::net::GetDefaultHostAddress(GetTransportSettings());
+}
+
 void Session::StartOffline(World &world, const MatchSettings &settings, const std::string &name)
 {
     Shutdown(world);
@@ -50,11 +60,11 @@ Bool Session::StartHost(
 )
 {
     Shutdown(world);
-    transport = CreateTransport();
+    transport = ::net::CreateTransport(GetTransportSettings());
     address = host_address;
     if (!transport->StartHost(host_address))
     {
-        Fail(transport->Status());
+        Fail(transport->GetStatus());
         return false;
     }
     mode = SessionMode::HOST;
@@ -69,7 +79,7 @@ Bool Session::StartHost(
 Bool Session::StartClient(World &world, const std::string &name, const std::string &host_address)
 {
     Shutdown(world);
-    transport = CreateTransport();
+    transport = ::net::CreateTransport(GetTransportSettings());
     address = host_address;
     playerName = name;
     world.Initialize(MatchSettings{});
@@ -82,7 +92,7 @@ Bool Session::StartClient(World &world, const std::string &name, const std::stri
     hasEventSequence = false;
     if (!transport->StartClient(host_address))
     {
-        Fail(transport->Status());
+        Fail(transport->GetStatus());
         return false;
     }
     return true;
@@ -118,7 +128,7 @@ void Session::Fail(const std::string &reason)
 
 std::string Session::TransportStatus() const
 {
-    return transport ? transport->Status() : std::string();
+    return transport ? transport->GetStatus() : std::string();
 }
 
 int Session::RemotePlayerCount(const World &world) const
@@ -530,7 +540,7 @@ void Session::ClientUpdate(World &world, const Float delta_seconds)
             }
             else
             {
-                Fail(transport->Status());
+                Fail(transport->GetStatus());
             }
             return;
         }

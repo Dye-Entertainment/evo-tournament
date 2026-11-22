@@ -1,5 +1,6 @@
 #pragma once
 #include "game/world.h"
+#include "net/byte_stream.h"
 #include "net/transport.h"
 
 #include "compiled/warning_off.h"
@@ -10,7 +11,20 @@
 
 namespace evo::net
 {
+using ::net::ByteReader;
+using ::net::ByteWriter;
+using ::net::Transport;
+using ::net::TransportEvent;
+using ::net::TransportEventType;
+using ::net::UsesRoomCodes;
+
 constexpr UInt8 PROTOCOL_VERSION = 1;
+
+[[nodiscard]]
+const ::net::TransportSettings &GetTransportSettings();
+
+[[nodiscard]]
+std::string DefaultHostAddress();
 
 enum class MessageType : UInt8
 {

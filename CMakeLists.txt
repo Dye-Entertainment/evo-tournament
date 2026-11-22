@@ -26,6 +26,12 @@ set(AUDIO_ENABLED ON CACHE BOOL "Enable feature" FORCE)
 set(AUDIO_BACKEND miniaudio CACHE STRING "Set backend" FORCE)
 set(IMGUI_ENABLED ON CACHE BOOL "Enable feature" FORCE)
 set(IMGUI_EXTENSION_ENABLED ON CACHE BOOL "Enable feature" FORCE)
+set(NET_ENABLED ON CACHE BOOL "Enable feature" FORCE)
+if(EMSCRIPTEN)
+    set(NET_BACKEND webrtc CACHE STRING "Set backend" FORCE)
+else()
+    set(NET_BACKEND udp CACHE STRING "Set backend" FORCE)
+endif()
 
 # Local fixes to the pinned engine revision (see patches/README). Applied once, idempotently.
 find_package(Git QUIET)
@@ -76,11 +82,9 @@ if(EMSCRIPTEN)
             "-sALLOW_MEMORY_GROWTH=1"
             "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','HEAPU8','HEAPF32','HEAP32']"
             "-sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE=['$stringToNewUTF8']"
-            "SHELL:--js-library ${CMAKE_CURRENT_LIST_DIR}/web/net_library.js"
             "SHELL:--shell-file ${CMAKE_CURRENT_LIST_DIR}/web/shell.html"
     )
     set_property(TARGET evo-tournament APPEND PROPERTY LINK_DEPENDS
-            "${CMAKE_CURRENT_LIST_DIR}/web/net_library.js"
             "${CMAKE_CURRENT_LIST_DIR}/web/shell.html"
     )
 endif()
