@@ -1,13 +1,10 @@
 #pragma once
+#include "audio/audio_backend.h"
 #include "game/math_util.h"
 
 #include "compiled/warning_off.h"
 #include <array>
-#include <vector>
 #include "compiled/warning_on.h"
-
-struct ma_engine;
-struct ma_sound;
 
 namespace evo
 {
@@ -45,18 +42,12 @@ class Sfx final
     void PlayAt(Sound sound, const FVec3 &position, Float volume = 1.0f);
     void SetListener(const FVec3 &position, Float yaw);
     void SetMasterVolume(Float volume);
+    [[nodiscard]]
+    Bool AllSoundsLoaded() const;
 
   private:
-    struct Pool
-    {
-        std::vector<ma_sound *> voices;
-        size_t next = 0;
-    };
-
-    ma_engine *engine = nullptr;
-    std::array<Pool, static_cast<size_t>(Sound::COUNT)> pools;
-    FVec3 listenerPosition;
-    Float listenerYaw = 0.0f;
+    std::array<audio::SoundPoolId, static_cast<size_t>(Sound::COUNT)> pools{};
+    Bool ownsAudioManager = false;
     math::Random random;
 };
 } // namespace evo

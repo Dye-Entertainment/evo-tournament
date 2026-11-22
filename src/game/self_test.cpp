@@ -1,4 +1,5 @@
 #include "game/self_test.h"
+#include "audio/sfx.h"
 #include "game/bot.h"
 #include "game/world.h"
 
@@ -50,6 +51,28 @@ int ValidateWaypoints(const Arena &arena)
 }
 } // namespace
 
+int ValidateSounds()
+{
+    Sfx sfx;
+    if (!sfx.Initialize())
+    {
+        std::printf("audio device unavailable, sound check skipped\n");
+        return 0;
+    }
+    if (!sfx.AllSoundsLoaded())
+    {
+        std::printf("some sounds failed to load\n");
+        return 1;
+    }
+    sfx.SetMasterVolume(0.0f);
+    for (int sound = 0; sound < static_cast<int>(Sound::COUNT); ++sound)
+    {
+        sfx.Play(static_cast<Sound>(sound));
+        sfx.PlayAt(static_cast<Sound>(sound), FVec3{4.0f, 0.0f, 3.0f});
+    }
+    return 0;
+}
+
 int RunSelfTest()
 {
     World world;
@@ -61,6 +84,7 @@ int RunSelfTest()
     world.Initialize(settings);
 
     int failures = ValidateWaypoints(world.arena);
+    failures += ValidateSounds();
 
     for (int i = 0; i < settings.botCount; ++i)
     {

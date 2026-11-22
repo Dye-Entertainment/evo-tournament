@@ -2,10 +2,11 @@
 
 #include "audio/audio_manager.h"
 #include "miniaudio/audio/audio_backend.h"
+#include "resource/asset_path.h"
 #include "utils/logger.h"
 
 #include "compiled/warning_off.h"
-#include <miniaudio/miniaudio.h>
+#include <algorithm>
 #include <string>
 #include "compiled/warning_on.h"
 
@@ -16,7 +17,7 @@ namespace
 struct SoundInfo
 {
     const Char *file;
-    int voices;
+    UInt32 voices;
 };
 
 const SoundInfo SOUND_INFO[static_cast<size_t>(Sound::COUNT)] = {
@@ -26,94 +27,86 @@ const SoundInfo SOUND_INFO[static_cast<size_t>(Sound::COUNT)] = {
     {"hit", 4},           {"hurt", 3},          {"death", 4},        {"frag", 2},
     {"spawn", 3},         {"match_end", 1},     {"empty", 2},        {"switch", 2},
 };
+
+audio::AudioManager *GetAudio()
+{
+    return audio::AudioManager::GetInstance();
+}
 } // namespace
 
 Sfx::~Sfx()
 {
-    for (Pool &pool : pools)
+    if (ownsAudioManager && GetAudio() != nullptr)
     {
-        for (ma_sound *voice : pool.voices)
-        {
-            ma_sound_uninit(voice);
-            delete voice;
-        }
-        pool.voices.clear();
+        GetAudio()->Destroy();
     }
 }
 
 Bool Sfx::Initialize()
 {
-    auto *backend = new miniaudio::audio::AudioBackend();
+    pools.fill(audio::INVALID_SOUND_POOL);
     auto *manager = audio::AudioManager::CreateInstance();
-    if (!manager->Initialize(backend))
+    ownsAudioManager = true;
+    if (!manager->Initialize(new miniaudio::audio::AudioBackend()))
     {
         LOGWARNING("Audio unavailable, continuing without sound");
+        manager->Destroy();
         return false;
     }
-    engine = &backend->GetAudioEngine();
     for (size_t index = 0; index < pools.size(); ++index)
     {
-        const std::string path = std::string(EVO_RESOURCE_DIR) + "/sounds/" + SOUND_INFO[index].file + ".wav";
-        for (int v = 0; v < SOUND_INFO[index].voices; ++v)
-        {
-            auto *voice = new ma_sound();
-            const ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
-            if (ma_sound_init_from_file(engine, path.c_str(), flags, nullptr, nullptr, voice) != MA_SUCCESS)
-            {
-                LOGWARNING("Failed to load sound %s", path.c_str());
-                delete voice;
-                break;
-            }
-            pools[index].voices.push_back(voice);
-        }
+        const std::string path = std::string("game://sounds/") + SOUND_INFO[index].file + ".wav";
+        pools[index] =
+            manager->CreateSoundPool(resource::AssetPath(path), SOUND_INFO[index].voices);
     }
     return true;
 }
 
 void Sfx::Play(const Sound sound, const Float volume, const Float pan)
 {
-    if (engine == nullptr)
+    if (GetAudio() == nullptr)
     {
         return;
     }
-    Pool &pool = pools[static_cast<size_t>(sound)];
-    if (pool.voices.empty() || volume <= 0.01f)
-    {
-        return;
-    }
-    ma_sound *voice = pool.voices[pool.next];
-    pool.next = (pool.next + 1) % pool.voices.size();
-    ma_sound_stop(voice);
-    ma_sound_seek_to_pcm_frame(voice, 0);
-    ma_sound_set_volume(voice, volume);
-    ma_sound_set_pan(voice, math::Clamp(pan, -1.0f, 1.0f));
-    ma_sound_set_pitch(voice, random.NextRange(0.95f, 1.05f));
-    ma_sound_start(voice);
-}
-
-void Sfx::SetListener(const FVec3 &position, const Float yaw)
-{
-    listenerPosition = position;
-    listenerYaw = yaw;
+    GetAudio()->PlaySound(
+        pools[static_cast<size_t>(sound)],
+        audio::SoundParameters{volume, pan, random.NextRange(0.95f, 1.05f)}
+    );
 }
 
 void Sfx::PlayAt(const Sound sound, const FVec3 &position, const Float volume)
 {
-    const FVec3 delta = position - listenerPosition;
-    const Float distance = math::GetLength(delta);
-    const Float attenuation = 1.0f / (1.0f + distance * 0.08f);
-    const Float pan =
-        distance > 0.5f
-            ? math::GetDotProduct(delta * (1.0f / distance), RightXZ(listenerYaw)) * 0.75f
-            : 0.0f;
-    Play(sound, volume * attenuation, pan);
+    if (GetAudio() == nullptr)
+    {
+        return;
+    }
+    GetAudio()->PlaySoundAt(
+        pools[static_cast<size_t>(sound)], position,
+        audio::SoundParameters{volume, 0.0f, random.NextRange(0.95f, 1.05f)}
+    );
+}
+
+void Sfx::SetListener(const FVec3 &position, const Float yaw)
+{
+    if (GetAudio() != nullptr)
+    {
+        GetAudio()->SetListener(position, yaw);
+    }
 }
 
 void Sfx::SetMasterVolume(const Float volume)
 {
-    if (engine != nullptr)
+    if (GetAudio() != nullptr)
     {
-        ma_engine_set_volume(engine, math::Clamp(volume, 0.0f, 1.0f));
+        GetAudio()->SetMasterVolume(volume);
     }
+}
+
+Bool Sfx::AllSoundsLoaded() const
+{
+    return std::none_of(
+        pools.begin(), pools.end(),
+        [](const audio::SoundPoolId pool) { return pool == audio::INVALID_SOUND_POOL; }
+    );
 }
 } // namespace evo
