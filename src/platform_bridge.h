@@ -8,22 +8,10 @@
 namespace evo::bridge
 {
 [[nodiscard]]
-Bool IsWeb();
-
-void SetMouseCapture(Bool wanted, Bool pointer_over_ui);
-
-[[nodiscard]]
-Bool IsMouseCaptured();
-
-void TakeMouseDelta(Float &dx, Float &dy);
-
-[[nodiscard]]
 std::string JoinCodeFromUrl();
 
 [[nodiscard]]
 std::string InviteLink(const std::string &room);
-
-void CopyToClipboard(const std::string &text);
 
 [[nodiscard]]
 std::string LoadSetting(const std::string &key, const std::string &fallback);

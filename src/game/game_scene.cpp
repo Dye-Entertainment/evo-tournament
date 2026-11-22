@@ -5,6 +5,8 @@
 #include "input/keyboard.h"
 #include "input/manager.h"
 #include "input/mouse.h"
+#include "input/mouse_capture.h"
+#include "os/browser.h"
 #include "window/window_manager.h"
 
 #include "compiled/warning_off.h"
@@ -256,7 +258,7 @@ InputFrame GameScene::ReadInput(const Float delta_seconds)
 
     Float dx = 0.0f;
     Float dy = 0.0f;
-    bridge::TakeMouseDelta(dx, dy);
+    input::TakeMouseDelta(dx, dy);
     frame.lookX = dx;
     frame.lookY = dy;
 
@@ -1080,14 +1082,14 @@ void GameScene::UpdateCapture(const InputFrame &input)
     const Bool over_ui = imguiReady && ImGui::GetIO().WantCaptureMouse;
     if (screen != Screen::IN_MATCH)
     {
-        bridge::SetMouseCapture(false, over_ui);
+        input::SetMouseCaptured(false, over_ui);
         wasCaptured = false;
         return;
     }
-    if (bridge::IsWeb())
+    if (os::IsBrowser())
     {
-        bridge::SetMouseCapture(true, over_ui || showScoreboard);
-        const Bool captured = bridge::IsMouseCaptured();
+        input::SetMouseCaptured(true, over_ui || showScoreboard);
+        const Bool captured = input::IsMouseCaptured();
         menuOpen = !captured;
         if (captured && !wasCaptured)
         {
@@ -1107,7 +1109,7 @@ void GameScene::UpdateCapture(const InputFrame &input)
             menuOpen = false;
             fireArmed = false;
         }
-        bridge::SetMouseCapture(!menuOpen, over_ui);
+        input::SetMouseCaptured(!menuOpen, over_ui);
     }
     if (!input.fireHeld && !menuOpen)
     {

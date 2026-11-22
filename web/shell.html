@@ -108,26 +108,9 @@
   var barFill = document.querySelector('#bar > div');
   var hint = document.getElementById('hint');
 
-  // Mouse state read by the game through platform_bridge.cpp.
-  var evoMouse = { dx: 0, dy: 0, wantLock: false, overUi: false };
-
-  document.addEventListener('mousemove', function (e) {
-    if (document.pointerLockElement === canvas) {
-      evoMouse.dx += e.movementX || 0;
-      evoMouse.dy += e.movementY || 0;
-    }
-  });
-  canvas.addEventListener('mousedown', function () {
-    canvas.focus();
-    if (evoMouse.wantLock && !evoMouse.overUi && document.pointerLockElement !== canvas) {
-      var request = canvas.requestPointerLock({ unadjustedMovement: true });
-      if (request && request.catch) {
-        request.catch(function () { canvas.requestPointerLock(); });
-      }
-    }
-  });
   setInterval(function () {
-    var show = evoMouse.wantLock && document.pointerLockElement !== canvas;
+    var capture = Module.pointerCapture;
+    var show = !!capture && capture.wantLock && document.pointerLockElement !== canvas;
     hint.style.opacity = show ? '1' : '0';
   }, 250);
 
@@ -145,7 +128,6 @@
 
   var Module = {
     canvas: canvas,
-    evoMouse: evoMouse,
     print: function (text) { console.log(text); },
     printErr: function (text) { console.warn(text); },
     setStatus: function (text) {

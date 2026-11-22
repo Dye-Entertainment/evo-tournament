@@ -1,6 +1,9 @@
 #include "game/game_scene.h"
 #include "platform_bridge.h"
 
+#include "os/browser.h"
+#include "os/clipboard.h"
+
 #include "compiled/warning_off.h"
 #include <imgui.h>
 #include <cstdio>
@@ -492,7 +495,7 @@ void GameScene::DrawPauseMenu(const Float width, const Float height)
     static_cast<void>(height);
     CenterNextWindow(480.0f);
     ImGui::Begin("##pause", nullptr, PANEL_FLAGS);
-    CenteredText(font, 30.0f, ACCENT, bridge::IsWeb() ? "CLICK THE ARENA TO PLAY" : "PAUSED");
+    CenteredText(font, 30.0f, ACCENT, os::IsBrowser() ? "CLICK THE ARENA TO PLAY" : "PAUSED");
     ImGui::Spacing();
     if (session.mode == net::SessionMode::HOST)
     {
@@ -508,7 +511,7 @@ void GameScene::DrawPauseMenu(const Float width, const Float height)
             ImGui::SameLine();
             if (ImGui::Button("Copy", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f)))
             {
-                bridge::CopyToClipboard(link_buffer);
+                os::SetClipboardText(link_buffer);
                 notices.emplace_back("Invite link copied", realTime);
             }
         }
@@ -528,7 +531,7 @@ void GameScene::DrawPauseMenu(const Float width, const Float height)
     }
     ImGui::Spacing();
     const Float full = ImGui::GetContentRegionAvail().x;
-    if (!bridge::IsWeb() && ImGui::Button("Resume", ImVec2(full, 38.0f)))
+    if (!os::IsBrowser() && ImGui::Button("Resume", ImVec2(full, 38.0f)))
     {
         menuOpen = false;
         fireArmed = false;
