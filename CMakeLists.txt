@@ -49,10 +49,6 @@ endforeach()
 
 add_subdirectory(evogine/src engine_build)
 
-if(NOT EMSCRIPTEN AND TARGET imgui AND TARGET SDL3::SDL3)
-    target_link_libraries(imgui PRIVATE SDL3::SDL3)
-endif()
-
 target_link_libraries(evo-tournament PRIVATE evogine)
 if(EMSCRIPTEN)
     target_compile_definitions(evo-tournament PRIVATE EVO_RESOURCE_DIR="/game")

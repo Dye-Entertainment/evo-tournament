@@ -11,8 +11,7 @@ all: linux
 
 evogen:
 	cmake -S evogine/tools/evogen -G Ninja -B build-evogen --toolchain=$(LINUX_TOOLCHAIN) \
-		-DCMAKE_BUILD_TYPE=Release -DIMGUI_ENABLED=ON -DIMGUI_EXTENSION_ENABLED=ON \
-		"-DCMAKE_CXX_FLAGS=-I$(ROOT)/evogine/thirdparty/sdl/include"
+		-DCMAKE_BUILD_TYPE=Release -DIMGUI_ENABLED=ON -DIMGUI_EXTENSION_ENABLED=ON
 	ninja -C build-evogen
 
 linux:
@@ -21,7 +20,7 @@ linux:
 
 web:
 	source $(EMSDK)/emsdk_env.sh >/dev/null 2>&1 && \
-	cmake -S . -G Ninja -B build-web --toolchain=$(ROOT)/cmake/emscripten-toolchain.cmake -DCMAKE_BUILD_TYPE=Release && \
+	cmake -S . -G Ninja -B build-web --toolchain=$(ROOT)/evogine/src/platform/emscripten/toolchain/emscripten.cmake -DCMAKE_BUILD_TYPE=Release && \
 	ninja -C build-web
 
 run: linux
