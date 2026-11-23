@@ -7,9 +7,14 @@ namespace
 const Char *BOT_NAMES[] = {"Vex",   "Kora",  "Drift", "Nyx",    "Rook",  "Sable",
                            "Talon", "Quill", "Ember", "Juniper", "Onyx", "Wren"};
 
-constexpr Float SIGHT_RANGE = 80.0f;
 constexpr Float THINK_INTERVAL = 0.12f;
 constexpr Float FORGET_SECONDS = 3.0f;
+
+// How far a bot can spot enemies: 45 m for the weakest bots, 75 m for the strongest.
+Float SightRange(const Float skill)
+{
+    return 45.0f + 30.0f * skill;
+}
 
 Float TurnToward(const Float current, const Float desired, const Float max_step)
 {
@@ -150,15 +155,15 @@ void Perceive(World &world, const int player_id, Player &bot)
         const FVec3 chest = other.move.position + FVec3{0.0f, 1.1f, 0.0f};
         const FVec3 delta = chest - eye;
         const Float distance = math::GetLength(delta);
-        if (distance > SIGHT_RANGE)
+        if (distance > SightRange(bot.brain.skill))
         {
             continue;
         }
         const Bool attacked_by =
             bot.lastDamageFrom == i && world.time - bot.lastDamageTime < 2.0f;
         const Bool in_view =
-            math::GetDotProduct(view, delta * (1.0f / std::max(distance, 0.01f))) > -0.1f;
-        if (!in_view && !attacked_by && distance > 10.0f)
+            math::GetDotProduct(view, delta * (1.0f / std::max(distance, 0.01f))) > 0.3f;
+        if (!in_view && !attacked_by && distance > 6.0f)
         {
             continue;
         }
@@ -179,7 +184,8 @@ void Perceive(World &world, const int player_id, Player &bot)
     }
     if (best != brain.target || world.time - brain.targetLastSeen > 1.0f)
     {
-        brain.reactionTimer = 0.5f - 0.35f * brain.skill;
+        // Weak bots take close to a second to react to a new enemy; strong ones about a third.
+        brain.reactionTimer = 0.95f - 0.6f * brain.skill + world.random.NextRange(0.0f, 0.35f);
     }
     brain.target = best;
     brain.targetLastSeen = world.time;
@@ -317,13 +323,18 @@ void UpdateBot(
         {
             aim_point.y = target->move.position.y + 1.45f;
         }
-        const Float error_limit = 0.10f * (1.0f - brain.skill) + 0.012f;
+        // Aim wanders around the target; weaker bots wander further and faster, and a
+        // moving target throws their aim off more.
+        const Float target_speed = LengthXZ(target->move.velocity);
+        const Float error_limit =
+            (0.2f * (1.0f - brain.skill) + 0.03f) * (1.0f + target_speed * 0.04f);
+        const Float wobble = 2.2f - 1.2f * brain.skill;
         brain.aimErrorYaw = math::Clamp(
-            brain.aimErrorYaw + world.random.NextRange(-1.0f, 1.0f) * delta_seconds * 0.8f,
+            brain.aimErrorYaw + world.random.NextRange(-1.0f, 1.0f) * delta_seconds * wobble,
             -error_limit, error_limit
         );
         brain.aimErrorPitch = math::Clamp(
-            brain.aimErrorPitch + world.random.NextRange(-1.0f, 1.0f) * delta_seconds * 0.5f,
+            brain.aimErrorPitch + world.random.NextRange(-1.0f, 1.0f) * delta_seconds * wobble * 0.6f,
             -error_limit * 0.6f, error_limit * 0.6f
         );
         math::GetYawPitchFromDirection(aim_point - eye, desired_yaw, desired_pitch);
@@ -335,7 +346,7 @@ void UpdateBot(
         desired_yaw = std::atan2(move_direction.x, move_direction.z);
     }
 
-    const Float turn = (2.5f + 7.0f * brain.skill) * delta_seconds;
+    const Float turn = (1.8f + 5.0f * brain.skill) * delta_seconds;
     bot.yaw = TurnToward(bot.yaw, desired_yaw, turn);
     bot.pitch = math::Clamp(TurnToward(bot.pitch, desired_pitch, turn), -1.45f, 1.45f);
 
@@ -367,7 +378,9 @@ void UpdateBot(
         input.jump = true;
     }
 
-    if (target_visible && target != nullptr && brain.reactionTimer <= 0.0f)
+    brain.burstTimer -= delta_seconds;
+    brain.burstPause -= delta_seconds;
+    if (target_visible && target != nullptr && brain.reactionTimer <= 0.0f && brain.burstPause <= 0.0f)
     {
         if (bot.weapon == WeaponId::NOVA && target_distance < 3.5f)
         {
@@ -389,6 +402,16 @@ void UpdateBot(
             fire.fire = true;
             fire.origin = eye;
             fire.direction = view;
+            // Shoot in bursts and stop to re-aim in between, longer pauses for weaker bots.
+            if (brain.burstTimer <= -0.5f)
+            {
+                brain.burstTimer = 0.35f + 0.6f * brain.skill;
+            }
+            else if (brain.burstTimer <= 0.0f)
+            {
+                brain.burstPause = world.random.NextRange(0.4f, 0.9f) * (1.3f - brain.skill);
+                brain.burstTimer = -1.0f;
+            }
         }
     }
 }

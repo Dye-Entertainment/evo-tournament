@@ -155,9 +155,37 @@ void Session::Update(World &world, const Float delta_seconds)
     }
 }
 
+void Session::SetBots(World &world, const int count, const Float skill)
+{
+    if (mode != SessionMode::OFFLINE && mode != SessionMode::HOST)
+    {
+        return;
+    }
+    world.settings.botCount = std::clamp(count, 0, MAX_PLAYERS - 1);
+    world.settings.botSkill = math::Clamp(skill, 0.0f, 1.0f);
+    for (Player &player : world.players)
+    {
+        if (player.active && player.control == PlayerControl::BOT)
+        {
+            player.brain.skill = world.settings.botSkill;
+        }
+    }
+    FillBots(world);
+}
+
 void Session::FillBots(World &world)
 {
     int bots = world.CountPlayers(PlayerControl::BOT);
+    for (int i = MAX_PLAYERS - 1; i >= 0 && bots > world.settings.botCount; --i)
+    {
+        if (world.players[i].active && world.players[i].control == PlayerControl::BOT)
+        {
+            messages.push_back(world.players[i].name + " left the match");
+            world.RemovePlayer(i);
+            --bots;
+            rosterDirty = true;
+        }
+    }
     while (bots < world.settings.botCount)
     {
         std::string name;

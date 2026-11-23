@@ -143,8 +143,8 @@ void GameScene::LoadOptions()
     options.fieldOfView = std::strtof(bridge::LoadSetting("fov", "100").c_str(), nullptr);
     options.volume = std::strtof(bridge::LoadSetting("volume", "0.8").c_str(), nullptr);
     options.invertY = bridge::LoadSetting("invertY", "0") == "1";
-    options.match.botCount = std::atoi(bridge::LoadSetting("bots", "5").c_str());
-    options.match.botSkill = std::strtof(bridge::LoadSetting("botSkill", "0.5").c_str(), nullptr);
+    options.match.botCount = std::atoi(bridge::LoadSetting("bots", "4").c_str());
+    options.match.botSkill = std::strtof(bridge::LoadSetting("botSkill", "0.3").c_str(), nullptr);
     options.match.fragLimit = static_cast<Int16>(std::atoi(bridge::LoadSetting("fragLimit", "15").c_str()));
     options.match.timeLimitSeconds = std::strtof(bridge::LoadSetting("timeLimit", "480").c_str(), nullptr);
 
@@ -1043,7 +1043,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
     if (player == nullptr)
     {
         const Float angle = realTime * 0.08f;
-        cameraEye = FVec3{std::sin(angle) * 23.0f, 13.0f, std::cos(angle) * 23.0f};
+        cameraEye = FVec3{std::sin(angle) * 38.0f, 17.0f, std::cos(angle) * 38.0f};
         math::GetYawPitchFromDirection(FVec3{0.0f, 2.0f, 0.0f} - cameraEye, cameraYaw, cameraPitch);
         return;
     }

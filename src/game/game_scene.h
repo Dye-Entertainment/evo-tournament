@@ -138,6 +138,7 @@ class GameScene final : public core::Scene
     void DrawNameplates(Float width, Float height);
     void DrawErrorPopup();
     void DrawOptionsControls();
+    void DrawBotControls(Bool live);
     void DrawMatchSettingsControls();
 
     World world;

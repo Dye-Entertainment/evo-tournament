@@ -75,6 +75,8 @@ struct BotBrain
     Float dodgeTimer = 3.0f;
     Float aimErrorYaw = 0.0f;
     Float aimErrorPitch = 0.0f;
+    Float burstTimer = -1.0f;
+    Float burstPause = 0.0f;
     Float skill = 0.5f;
 };
 
@@ -164,8 +166,8 @@ struct MatchSettings
 {
     Int16 fragLimit = 15;
     Float timeLimitSeconds = 480.0f;
-    int botCount = 5;
-    Float botSkill = 0.5f;
+    int botCount = 4;
+    Float botSkill = 0.3f;
 };
 
 struct MatchState

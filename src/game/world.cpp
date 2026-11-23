@@ -89,7 +89,7 @@ const Char *PickupName(const PickupKind kind)
 void World::Initialize(const MatchSettings &match_settings)
 {
     settings = match_settings;
-    arena.BuildFoundry();
+    arena.BuildBastion();
     players = {};
     projectiles.clear();
     eventLog.clear();

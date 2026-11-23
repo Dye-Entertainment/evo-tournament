@@ -61,7 +61,7 @@ struct RayHit
 class Arena final
 {
   public:
-    void BuildFoundry();
+    void BuildBastion();
 
     [[nodiscard]]
     Bool RayCast(const FVec3 &origin, const FVec3 &direction, Float max_distance, RayHit &hit) const;

@@ -65,6 +65,8 @@ class Session final
     void Update(World &world, Float delta_seconds);
     void SendFire(WeaponId weapon, const FVec3 &origin, const FVec3 &direction);
     void SendRespawnRequest();
+    // Host and offline only: adds or removes bots to reach `count` and applies `skill` to all of them.
+    void SetBots(World &world, int count, Float skill);
     void Shutdown(World &world);
 
     [[nodiscard]]

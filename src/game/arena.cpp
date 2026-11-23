@@ -1,6 +1,7 @@
 #include "game/arena.h"
 
 #include "compiled/warning_off.h"
+#include <algorithm>
 #include <limits>
 #include <queue>
 #include "compiled/warning_on.h"
@@ -11,17 +12,27 @@ namespace
 {
 const FVec3 FLOOR_COLOR{0.30f, 0.32f, 0.37f};
 const FVec3 WALL_COLOR{0.40f, 0.38f, 0.36f};
-const FVec3 ALTAR_COLOR{0.58f, 0.46f, 0.30f};
-const FVec3 RING_COLOR{0.34f, 0.38f, 0.46f};
+const FVec3 KEEP_COLOR{0.58f, 0.46f, 0.30f};
+const FVec3 DECK_COLOR{0.34f, 0.38f, 0.46f};
+const FVec3 WING_COLOR{0.36f, 0.42f, 0.38f};
 const FVec3 PILLAR_COLOR{0.50f, 0.50f, 0.54f};
+const FVec3 COVER_COLOR{0.44f, 0.40f, 0.46f};
+const FVec3 CRATE_COLOR{0.55f, 0.42f, 0.26f};
 const FVec3 TRIM_COLOR{1.00f, 0.55f, 0.15f};
 const FVec3 PAD_COLOR{0.20f, 0.95f, 1.00f};
 const FVec3 STAIR_COLOR{0.46f, 0.44f, 0.42f};
 
-constexpr Float RING_HEIGHT = 6.0f;
-constexpr Float RING_THICKNESS = 0.5f;
-constexpr Float WALL_HEIGHT = 14.0f;
-constexpr Float HALF_SIZE = 30.0f;
+constexpr Float HALF_SIZE = 46.0f;
+constexpr Float WALL_HEIGHT = 16.0f;
+constexpr Float DECK_HEIGHT = 6.0f;
+constexpr Float DECK_THICKNESS = 0.5f;
+constexpr Float DECK_EDGE = 38.0f;
+constexpr Float KEEP_HALF = 8.0f;
+constexpr Float KEEP_HEIGHT = 3.0f;
+constexpr Float WING_INNER = 36.0f;
+constexpr Float WING_HALF_LENGTH = 18.0f;
+constexpr Float WING_HEIGHT = 3.0f;
+constexpr Float BRIDGE_HALF_WIDTH = 2.0f;
 constexpr Float PAD_HORIZONTAL_SPEED = 6.7f;
 constexpr Float PAD_VERTICAL_SPEED = 18.0f;
 } // namespace
@@ -48,73 +59,113 @@ void Arena::LinkOneWay(const int from, const int to)
     waypoints[from].links.push_back(to);
 }
 
-void Arena::BuildFoundry()
+void Arena::BuildBastion()
 {
-    name = "Foundry";
+    name = "Bastion";
     boxes.clear();
     jumpPads.clear();
     spawnPoints.clear();
     pickupSpots.clear();
     waypoints.clear();
 
-    AddBox({-HALF_SIZE, -1.0f, -HALF_SIZE}, {HALF_SIZE, 0.0f, HALF_SIZE}, FLOOR_COLOR);
-    AddBox({-HALF_SIZE - 1, 0, HALF_SIZE}, {HALF_SIZE + 1, WALL_HEIGHT, HALF_SIZE + 1}, WALL_COLOR);
-    AddBox({-HALF_SIZE - 1, 0, -HALF_SIZE - 1}, {HALF_SIZE + 1, WALL_HEIGHT, -HALF_SIZE}, WALL_COLOR);
-    AddBox({HALF_SIZE, 0, -HALF_SIZE}, {HALF_SIZE + 1, WALL_HEIGHT, HALF_SIZE}, WALL_COLOR);
-    AddBox({-HALF_SIZE - 1, 0, -HALF_SIZE}, {-HALF_SIZE, WALL_HEIGHT, HALF_SIZE}, WALL_COLOR);
+    constexpr Float H = HALF_SIZE;
+    constexpr Float DECK_BOTTOM = DECK_HEIGHT - DECK_THICKNESS;
 
-    AddBox({-HALF_SIZE, 9.8f, HALF_SIZE - 0.15f}, {HALF_SIZE, 10.1f, HALF_SIZE}, TRIM_COLOR, 0.0f);
-    AddBox({-HALF_SIZE, 9.8f, -HALF_SIZE}, {HALF_SIZE, 10.1f, -HALF_SIZE + 0.15f}, TRIM_COLOR, 0.0f);
-    AddBox({HALF_SIZE - 0.15f, 9.8f, -HALF_SIZE}, {HALF_SIZE, 10.1f, HALF_SIZE}, TRIM_COLOR, 0.0f);
-    AddBox({-HALF_SIZE, 9.8f, -HALF_SIZE}, {-HALF_SIZE + 0.15f, 10.1f, HALF_SIZE}, TRIM_COLOR, 0.0f);
+    // Floor, outer walls and a glowing trim band.
+    AddBox({-H, -1.0f, -H}, {H, 0.0f, H}, FLOOR_COLOR);
+    AddBox({-H - 1, 0, H}, {H + 1, WALL_HEIGHT, H + 1}, WALL_COLOR);
+    AddBox({-H - 1, 0, -H - 1}, {H + 1, WALL_HEIGHT, -H}, WALL_COLOR);
+    AddBox({H, 0, -H}, {H + 1, WALL_HEIGHT, H}, WALL_COLOR);
+    AddBox({-H - 1, 0, -H}, {-H, WALL_HEIGHT, H}, WALL_COLOR);
+    AddBox({-H, 11.8f, H - 0.15f}, {H, 12.1f, H}, TRIM_COLOR, 0.0f);
+    AddBox({-H, 11.8f, -H}, {H, 12.1f, -H + 0.15f}, TRIM_COLOR, 0.0f);
+    AddBox({H - 0.15f, 11.8f, -H}, {H, 12.1f, H}, TRIM_COLOR, 0.0f);
+    AddBox({-H, 11.8f, -H}, {-H + 0.15f, 12.1f, H}, TRIM_COLOR, 0.0f);
 
-    AddBox({-6, 0, -6}, {6, 3, 6}, ALTAR_COLOR);
-    AddBox({-5, 3, -1}, {-4, 4.2f, 1}, PILLAR_COLOR);
-    AddBox({4, 3, -1}, {5, 4.2f, 1}, PILLAR_COLOR);
+    // Central keep with stairs on its east and west faces and two low cover walls on top.
+    AddBox({-KEEP_HALF, 0, -KEEP_HALF}, {KEEP_HALF, KEEP_HEIGHT, KEEP_HALF}, KEEP_COLOR);
     for (int k = 1; k <= 5; ++k)
     {
         const Float height = 0.5f * static_cast<Float>(k);
-        const Float reach = 6.0f + static_cast<Float>(6 - k) * 0.8f;
-        AddBox({-2.5f, 0, 6}, {2.5f, height, reach}, STAIR_COLOR);
-        AddBox({-2.5f, 0, -reach}, {2.5f, height, -6}, STAIR_COLOR);
+        const Float reach = KEEP_HALF + static_cast<Float>(7 - k);
+        AddBox({KEEP_HALF, 0, -2.5f}, {reach, height, 2.5f}, STAIR_COLOR);
+        AddBox({-reach, 0, -2.5f}, {-KEEP_HALF, height, 2.5f}, STAIR_COLOR);
     }
+    AddBox({-3, KEEP_HEIGHT, 4.5f}, {3, KEEP_HEIGHT + 1.2f, 5}, COVER_COLOR);
+    AddBox({-3, KEEP_HEIGHT, -5}, {3, KEEP_HEIGHT + 1.2f, -4.5f}, COVER_COLOR);
 
-    const Float ring_bottom = RING_HEIGHT - RING_THICKNESS;
-    AddBox({24, ring_bottom, -HALF_SIZE}, {HALF_SIZE, RING_HEIGHT, HALF_SIZE}, RING_COLOR);
-    AddBox({-HALF_SIZE, ring_bottom, -HALF_SIZE}, {-24, RING_HEIGHT, HALF_SIZE}, RING_COLOR);
-    AddBox({-24, ring_bottom, 22}, {24, RING_HEIGHT, HALF_SIZE}, RING_COLOR);
-    AddBox({-24, ring_bottom, -HALF_SIZE}, {24, RING_HEIGHT, -22}, RING_COLOR);
-
-    AddBox({24, RING_HEIGHT, -2}, {24.4f, RING_HEIGHT + 1.1f, 2}, TRIM_COLOR, 0.0f);
-    AddBox({-24.4f, RING_HEIGHT, -2}, {-24, RING_HEIGHT + 1.1f, 2}, TRIM_COLOR, 0.0f);
-
-    for (const Float z : {-18.0f, -6.0f, 6.0f, 18.0f})
+    // Upper decks along the north and south walls, joined by a bridge that passes over the keep.
+    AddBox({-H, DECK_BOTTOM, DECK_EDGE}, {H, DECK_HEIGHT, H}, DECK_COLOR);
+    AddBox({-H, DECK_BOTTOM, -H}, {H, DECK_HEIGHT, -DECK_EDGE}, DECK_COLOR);
+    AddBox(
+        {-BRIDGE_HALF_WIDTH, DECK_BOTTOM, -DECK_EDGE}, {BRIDGE_HALF_WIDTH, DECK_HEIGHT, DECK_EDGE},
+        DECK_COLOR
+    );
+    AddBox({-BRIDGE_HALF_WIDTH, DECK_HEIGHT, -0.4f}, {-BRIDGE_HALF_WIDTH + 0.2f, DECK_HEIGHT + 0.5f, 0.4f}, TRIM_COLOR, 0.0f);
+    AddBox({BRIDGE_HALF_WIDTH - 0.2f, DECK_HEIGHT, -0.4f}, {BRIDGE_HALF_WIDTH, DECK_HEIGHT + 0.5f, 0.4f}, TRIM_COLOR, 0.0f);
+    for (const Float z : {-20.0f, 20.0f})
     {
-        AddBox({24, 0, z - 0.5f}, {25, ring_bottom, z + 0.5f}, PILLAR_COLOR);
-        AddBox({-25, 0, z - 0.5f}, {-24, ring_bottom, z + 0.5f}, PILLAR_COLOR);
+        AddBox({-BRIDGE_HALF_WIDTH, 0, z - 0.5f}, {-BRIDGE_HALF_WIDTH + 0.5f, DECK_BOTTOM, z + 0.5f}, PILLAR_COLOR);
+        AddBox({BRIDGE_HALF_WIDTH - 0.5f, 0, z - 0.5f}, {BRIDGE_HALF_WIDTH, DECK_BOTTOM, z + 0.5f}, PILLAR_COLOR);
     }
-    for (const Float x : {-16.0f, -6.0f, 6.0f, 16.0f})
+    for (const Float x : {-32.0f, -16.0f, 16.0f, 32.0f})
     {
-        AddBox({x - 0.5f, 0, 22}, {x + 0.5f, ring_bottom, 23}, PILLAR_COLOR);
-        AddBox({x - 0.5f, 0, -23}, {x + 0.5f, ring_bottom, -22}, PILLAR_COLOR);
+        AddBox({x - 1, 0, DECK_EDGE}, {x + 1, DECK_BOTTOM, DECK_EDGE + 2}, PILLAR_COLOR);
+        AddBox({x - 1, 0, -DECK_EDGE - 2}, {x + 1, DECK_BOTTOM, -DECK_EDGE}, PILLAR_COLOR);
     }
 
-    for (int k = 1; k <= 11; ++k)
+    // Long stairways up to the decks in the north-east and south-west corners.
+    for (int k = 1; k <= 12; ++k)
     {
         const Float height = 0.5f * static_cast<Float>(k);
-        AddBox({8.0f + static_cast<Float>(k), 0, 18}, {20, height, 22}, STAIR_COLOR);
-        AddBox({-20, 0, -22}, {-8.0f - static_cast<Float>(k), height, -18}, STAIR_COLOR);
+        const Float near_end = 25.0f + static_cast<Float>(k);
+        AddBox({38, 0, near_end}, {44, height, DECK_EDGE}, STAIR_COLOR);
+        AddBox({-44, 0, -DECK_EDGE}, {-38, height, -near_end}, STAIR_COLOR);
     }
 
+    // Raised wings on the east and west walls, with stairs and a short parapet facing the middle.
+    AddBox({WING_INNER, 0, -WING_HALF_LENGTH}, {H, WING_HEIGHT, WING_HALF_LENGTH}, WING_COLOR);
+    AddBox({-H, 0, -WING_HALF_LENGTH}, {-WING_INNER, WING_HEIGHT, WING_HALF_LENGTH}, WING_COLOR);
+    for (int k = 1; k <= 5; ++k)
+    {
+        const Float height = 0.5f * static_cast<Float>(k);
+        const Float reach = WING_INNER - static_cast<Float>(6 - k);
+        AddBox({reach, 0, -2.5f}, {WING_INNER, height, 2.5f}, STAIR_COLOR);
+        AddBox({-WING_INNER, 0, -2.5f}, {-reach, height, 2.5f}, STAIR_COLOR);
+    }
+    for (const Float sz : {-1.0f, 1.0f})
+    {
+        const Float z0 = std::min(sz * 6.0f, sz * 14.0f);
+        const Float z1 = std::max(sz * 6.0f, sz * 14.0f);
+        AddBox({WING_INNER, WING_HEIGHT, z0}, {WING_INNER + 0.5f, WING_HEIGHT + 1.1f, z1}, COVER_COLOR);
+        AddBox({-WING_INNER - 0.5f, WING_HEIGHT, z0}, {-WING_INNER, WING_HEIGHT + 1.1f, z1}, COVER_COLOR);
+    }
+
+    // Ground cover: an L-shaped wall and a pillar in every quadrant, plus crate stacks.
     for (const Float sx : {-1.0f, 1.0f})
     {
         for (const Float sz : {-1.0f, 1.0f})
         {
-            AddBox({sx * 14 - 1, 0, sz * 9 - 1}, {sx * 14 + 1, 4, sz * 9 + 1}, PILLAR_COLOR);
+            const auto add_mirrored = [&](const Float x0, const Float z0, const Float x1, const Float z1,
+                                          const Float height, const FVec3 &color)
+            {
+                AddBox(
+                    {std::min(sx * x0, sx * x1), 0, std::min(sz * z0, sz * z1)},
+                    {std::max(sx * x0, sx * x1), height, std::max(sz * z0, sz * z1)}, color
+                );
+            };
+            add_mirrored(16, 18, 24, 19, 3.5f, COVER_COLOR);
+            add_mirrored(23, 8, 24, 19, 3.5f, COVER_COLOR);
+            add_mirrored(11, 23, 13, 25, 6.0f, PILLAR_COLOR);
         }
     }
+    for (const Float s : {-1.0f, 1.0f})
+    {
+        AddBox({s * 30 - 1, 0, -s * 30 - 1}, {s * 30 + 1, 1.0f, -s * 30 + 1}, CRATE_COLOR);
+        AddBox({s * 32.2f - 0.8f, 0, -s * 30 - 0.8f}, {s * 32.2f + 0.8f, 1.6f, -s * 30 + 0.8f}, CRATE_COLOR);
+    }
 
-    const FVec3 pad_extent{1.0f, 0.0f, 1.0f};
+    // Jump pads that throw you onto the decks.
     const auto add_pad = [&](const FVec3 &center, const FVec3 &direction)
     {
         AddBox(
@@ -130,134 +181,171 @@ void Arena::BuildFoundry()
             }
         );
     };
-    add_pad({20, 0, 0}, {1, 0, 0});
-    add_pad({-20, 0, 0}, {-1, 0, 0});
-    add_pad({0, 0, 18}, {0, 0, 1});
-    add_pad({0, 0, -18}, {0, 0, -1});
+    add_pad({24, 0, 34}, {0, 0, 1});
+    add_pad({-24, 0, 34}, {0, 0, 1});
+    add_pad({24, 0, -34}, {0, 0, -1});
+    add_pad({-24, 0, -34}, {0, 0, -1});
 
     const auto add_spawn = [&](const FVec3 &position)
     {
         spawnPoints.push_back(SpawnPoint{position, std::atan2(-position.x, -position.z)});
     };
-    add_spawn({15, 0, 15});
-    add_spawn({-15, 0, -15});
-    add_spawn({15, 0, -15});
-    add_spawn({-15, 0, 15});
-    add_spawn({-9, 0, 8});
-    add_spawn({9, 0, -8});
-    add_spawn({27, RING_HEIGHT, 10});
-    add_spawn({27, RING_HEIGHT, -10});
-    add_spawn({-27, RING_HEIGHT, 10});
-    add_spawn({-27, RING_HEIGHT, -10});
-    add_spawn({8, RING_HEIGHT, 26});
-    add_spawn({-8, RING_HEIGHT, -26});
+    add_spawn({30, 0, 12});
+    add_spawn({-30, 0, -12});
+    add_spawn({-12, 0, 32});
+    add_spawn({12, 0, -32});
+    add_spawn({41, WING_HEIGHT, -10});
+    add_spawn({-41, WING_HEIGHT, 10});
+    add_spawn({-24, DECK_HEIGHT, 42});
+    add_spawn({24, DECK_HEIGHT, -42});
+    add_spawn({14, 0, -6});
+    add_spawn({-14, 0, 6});
+    add_spawn({12, DECK_HEIGHT, 42});
+    add_spawn({-12, DECK_HEIGHT, -42});
 
     pickupSpots = {
-        {PickupKind::WEAPON_RAIL, {0, 3, 0}},
-        {PickupKind::WEAPON_NOVA, {27, RING_HEIGHT, 0}},
-        {PickupKind::WEAPON_NOVA, {-27, RING_HEIGHT, 0}},
-        {PickupKind::MEGA_HEALTH, {0, RING_HEIGHT, 27}},
-        {PickupKind::ARMOR, {0, RING_HEIGHT, -27}},
-        {PickupKind::HEALTH, {15, 0, 0}},
-        {PickupKind::HEALTH, {-15, 0, 0}},
-        {PickupKind::HEALTH, {27, 0, -27}},
-        {PickupKind::HEALTH, {-27, 0, 27}},
-        {PickupKind::AMMO_RIFLE, {9, 0, 9}},
-        {PickupKind::AMMO_RIFLE, {-9, 0, -9}},
-        {PickupKind::AMMO_NOVA, {27, 0, 20}},
-        {PickupKind::AMMO_NOVA, {-27, 0, -20}},
-        {PickupKind::AMMO_RAIL, {19.5f, 5.5f, 20}},
-        {PickupKind::AMMO_RAIL, {-19.5f, 5.5f, -20}},
+        {PickupKind::WEAPON_RAIL, {0, KEEP_HEIGHT, 0}},
+        {PickupKind::MEGA_HEALTH, {0, DECK_HEIGHT, 0}},
+        {PickupKind::WEAPON_NOVA, {41, WING_HEIGHT, 0}},
+        {PickupKind::WEAPON_NOVA, {-41, WING_HEIGHT, 0}},
+        {PickupKind::ARMOR, {0, DECK_HEIGHT, 42}},
+        {PickupKind::ARMOR, {0, DECK_HEIGHT, -42}},
+        {PickupKind::HEALTH, {41, WING_HEIGHT, 14}},
+        {PickupKind::HEALTH, {-41, WING_HEIGHT, -14}},
+        {PickupKind::HEALTH, {18, 0, 0}},
+        {PickupKind::HEALTH, {-18, 0, 0}},
+        {PickupKind::HEALTH, {0, 0, 42}},
+        {PickupKind::HEALTH, {0, 0, -42}},
+        {PickupKind::AMMO_RIFLE, {20, 0, 13}},
+        {PickupKind::AMMO_RIFLE, {-20, 0, -13}},
+        {PickupKind::AMMO_NOVA, {32, 0, 24}},
+        {PickupKind::AMMO_NOVA, {-32, 0, -24}},
+        {PickupKind::AMMO_RAIL, {40, DECK_HEIGHT, 42}},
+        {PickupKind::AMMO_RAIL, {-40, DECK_HEIGHT, -42}},
     };
 
-    const int altar = AddWaypoint({0, 3, 0});
-    const int altar_north = AddWaypoint({0, 0, 11.5f});
-    const int altar_south = AddWaypoint({0, 0, -11.5f});
-    const int ground_ne = AddWaypoint({17, 0, 13});
-    const int ground_nw = AddWaypoint({-17, 0, 13});
-    const int ground_se = AddWaypoint({17, 0, -13});
-    const int ground_sw = AddWaypoint({-17, 0, -13});
-    const int ground_e = AddWaypoint({16.5f, 0, 0});
-    const int ground_w = AddWaypoint({-16.5f, 0, 0});
-    const int ground_n = AddWaypoint({0, 0, 15.5f});
-    const int ground_s = AddWaypoint({0, 0, -15.5f});
-    const int pad_e = AddWaypoint({20, 0.15f, 0});
-    const int pad_w = AddWaypoint({-20, 0.15f, 0});
-    const int pad_n = AddWaypoint({0, 0.15f, 18});
-    const int pad_s = AddWaypoint({0, 0.15f, -18});
-    const int balcony_e = AddWaypoint({27, RING_HEIGHT, 0});
-    const int balcony_ne = AddWaypoint({27, RING_HEIGHT, 26});
-    const int balcony_se = AddWaypoint({27, RING_HEIGHT, -26});
-    const int balcony_w = AddWaypoint({-27, RING_HEIGHT, 0});
-    const int balcony_nw = AddWaypoint({-27, RING_HEIGHT, 26});
-    const int balcony_sw = AddWaypoint({-27, RING_HEIGHT, -26});
-    const int bridge_n = AddWaypoint({0, RING_HEIGHT, 26});
-    const int bridge_s = AddWaypoint({0, RING_HEIGHT, -26});
-    const int bridge_ne = AddWaypoint({19.5f, RING_HEIGHT, 26});
-    const int bridge_sw = AddWaypoint({-19.5f, RING_HEIGHT, -26});
-    const int stair_ne_bottom = AddWaypoint({7.5f, 0, 20});
-    const int stair_ne_top = AddWaypoint({19.5f, 5.5f, 20});
-    const int stair_sw_bottom = AddWaypoint({-7.5f, 0, -20});
-    const int stair_sw_top = AddWaypoint({-19.5f, 5.5f, -20});
-    const int under_ne = AddWaypoint({27, 0, 12});
-    const int under_se = AddWaypoint({27, 0, -12});
-    const int under_nw = AddWaypoint({-27, 0, 12});
-    const int under_sw = AddWaypoint({-27, 0, -12});
+    // Bot navigation graph.
+    const int keep = AddWaypoint({0, KEEP_HEIGHT, 0});
+    const int keep_e = AddWaypoint({6, KEEP_HEIGHT, 0});
+    const int keep_w = AddWaypoint({-6, KEEP_HEIGHT, 0});
+    const int stair_e = AddWaypoint({18, 0, 0});
+    const int stair_w = AddWaypoint({-18, 0, 0});
+    const int center_n = AddWaypoint({0, 0, 13});
+    const int center_s = AddWaypoint({0, 0, -13});
+    const int quad_ne = AddWaypoint({12, 0, 13});
+    const int quad_nw = AddWaypoint({-12, 0, 13});
+    const int quad_se = AddWaypoint({12, 0, -13});
+    const int quad_sw = AddWaypoint({-12, 0, -13});
+    const int nook_ne = AddWaypoint({20, 0, 13});
+    const int nook_nw = AddWaypoint({-20, 0, 13});
+    const int nook_se = AddWaypoint({20, 0, -13});
+    const int nook_sw = AddWaypoint({-20, 0, -13});
+    const int wing_stair_e = AddWaypoint({29, 0, 0});
+    const int wing_stair_w = AddWaypoint({-29, 0, 0});
+    const int wing_e = AddWaypoint({41, WING_HEIGHT, 0});
+    const int wing_w = AddWaypoint({-41, WING_HEIGHT, 0});
+    const int wing_en = AddWaypoint({41, WING_HEIGHT, 14});
+    const int wing_es = AddWaypoint({41, WING_HEIGHT, -14});
+    const int wing_wn = AddWaypoint({-41, WING_HEIGHT, 14});
+    const int wing_ws = AddWaypoint({-41, WING_HEIGHT, -14});
+    const int outer_ne = AddWaypoint({30, 0, 22});
+    const int outer_nw = AddWaypoint({-30, 0, 22});
+    const int outer_se = AddWaypoint({30, 0, -22});
+    const int outer_sw = AddWaypoint({-30, 0, -22});
+    const int outer_n = AddWaypoint({0, 0, 30});
+    const int outer_s = AddWaypoint({0, 0, -30});
+    const int under_n = AddWaypoint({0, 0, 42});
+    const int under_s = AddWaypoint({0, 0, -42});
+    const int pad_ne = AddWaypoint({24, 0.15f, 34});
+    const int pad_nw = AddWaypoint({-24, 0.15f, 34});
+    const int pad_se = AddWaypoint({24, 0.15f, -34});
+    const int pad_sw = AddWaypoint({-24, 0.15f, -34});
+    const int deck_n = AddWaypoint({0, DECK_HEIGHT, 42});
+    const int deck_s = AddWaypoint({0, DECK_HEIGHT, -42});
+    const int deck_ne = AddWaypoint({24, DECK_HEIGHT, 42});
+    const int deck_nw = AddWaypoint({-24, DECK_HEIGHT, 42});
+    const int deck_se = AddWaypoint({24, DECK_HEIGHT, -42});
+    const int deck_sw = AddWaypoint({-24, DECK_HEIGHT, -42});
+    const int deck_ne_far = AddWaypoint({41, DECK_HEIGHT, 41});
+    const int deck_sw_far = AddWaypoint({-41, DECK_HEIGHT, -41});
+    const int deck_nw_far = AddWaypoint({-41, DECK_HEIGHT, 42});
+    const int deck_se_far = AddWaypoint({41, DECK_HEIGHT, -42});
+    const int bridge_mid = AddWaypoint({0, DECK_HEIGHT, 0});
+    const int bridge_n = AddWaypoint({0, DECK_HEIGHT, 20});
+    const int bridge_s = AddWaypoint({0, DECK_HEIGHT, -20});
+    const int stairway_ne = AddWaypoint({41, 0, 23});
+    const int stairway_sw = AddWaypoint({-41, 0, -23});
 
-    Link(altar, altar_north);
-    Link(altar, altar_south);
-    Link(altar_north, ground_n);
-    Link(altar_north, ground_ne);
-    Link(altar_north, ground_nw);
-    Link(altar_south, ground_s);
-    Link(altar_south, ground_se);
-    Link(altar_south, ground_sw);
-    Link(ground_ne, ground_e);
-    Link(ground_se, ground_e);
-    Link(ground_nw, ground_w);
-    Link(ground_sw, ground_w);
-    Link(ground_ne, ground_n);
-    Link(ground_nw, ground_n);
-    Link(ground_se, ground_s);
-    Link(ground_sw, ground_s);
-    Link(ground_e, pad_e);
-    Link(ground_w, pad_w);
-    Link(ground_n, pad_n);
-    Link(ground_s, pad_s);
-    LinkOneWay(pad_e, balcony_e);
-    LinkOneWay(pad_w, balcony_w);
-    LinkOneWay(pad_n, bridge_n);
-    LinkOneWay(pad_s, bridge_s);
-    Link(balcony_e, balcony_ne);
-    Link(balcony_e, balcony_se);
-    Link(balcony_w, balcony_nw);
-    Link(balcony_w, balcony_sw);
-    Link(balcony_ne, bridge_ne);
-    Link(bridge_ne, bridge_n);
-    Link(bridge_n, balcony_nw);
-    Link(balcony_se, bridge_s);
-    Link(bridge_s, bridge_sw);
-    Link(bridge_sw, balcony_sw);
-    Link(ground_n, stair_ne_bottom);
-    Link(stair_ne_bottom, stair_ne_top);
-    Link(stair_ne_top, bridge_ne);
-    Link(ground_s, stair_sw_bottom);
-    Link(stair_sw_bottom, stair_sw_top);
-    Link(stair_sw_top, bridge_sw);
-    LinkOneWay(balcony_e, ground_e);
-    LinkOneWay(balcony_w, ground_w);
-    LinkOneWay(bridge_n, ground_n);
-    LinkOneWay(bridge_s, ground_s);
-    LinkOneWay(altar, ground_e);
-    LinkOneWay(altar, ground_w);
-    Link(under_ne, ground_e);
-    Link(under_ne, ground_ne);
-    Link(under_se, ground_e);
-    Link(under_se, ground_se);
-    Link(under_nw, ground_w);
-    Link(under_nw, ground_nw);
-    Link(under_sw, ground_w);
-    Link(under_sw, ground_sw);
+    Link(keep, keep_e);
+    Link(keep, keep_w);
+    Link(keep_e, stair_e);
+    Link(keep_w, stair_w);
+    Link(stair_e, quad_ne);
+    Link(stair_e, quad_se);
+    Link(stair_w, quad_nw);
+    Link(stair_w, quad_sw);
+    Link(center_n, quad_ne);
+    Link(center_n, quad_nw);
+    Link(center_s, quad_se);
+    Link(center_s, quad_sw);
+    Link(quad_ne, nook_ne);
+    Link(quad_nw, nook_nw);
+    Link(quad_se, nook_se);
+    Link(quad_sw, nook_sw);
+    Link(stair_e, wing_stair_e);
+    Link(stair_w, wing_stair_w);
+    Link(wing_stair_e, wing_e);
+    Link(wing_stair_w, wing_w);
+    Link(wing_e, wing_en);
+    Link(wing_e, wing_es);
+    Link(wing_w, wing_wn);
+    Link(wing_w, wing_ws);
+    Link(wing_stair_e, outer_ne);
+    Link(wing_stair_e, outer_se);
+    Link(wing_stair_w, outer_nw);
+    Link(wing_stair_w, outer_sw);
+    Link(outer_ne, outer_n);
+    Link(outer_nw, outer_n);
+    Link(outer_se, outer_s);
+    Link(outer_sw, outer_s);
+    Link(outer_n, center_n);
+    Link(outer_s, center_s);
+    Link(outer_n, under_n);
+    Link(outer_s, under_s);
+    Link(outer_n, pad_ne);
+    Link(outer_n, pad_nw);
+    Link(outer_s, pad_se);
+    Link(outer_s, pad_sw);
+    Link(outer_ne, stairway_ne);
+    Link(outer_sw, stairway_sw);
+    Link(stairway_ne, deck_ne_far);
+    Link(stairway_sw, deck_sw_far);
+    LinkOneWay(pad_ne, deck_ne);
+    LinkOneWay(pad_nw, deck_nw);
+    LinkOneWay(pad_se, deck_se);
+    LinkOneWay(pad_sw, deck_sw);
+    Link(deck_n, deck_ne);
+    Link(deck_n, deck_nw);
+    Link(deck_s, deck_se);
+    Link(deck_s, deck_sw);
+    Link(deck_ne, deck_ne_far);
+    Link(deck_nw, deck_nw_far);
+    Link(deck_se, deck_se_far);
+    Link(deck_sw, deck_sw_far);
+    Link(deck_n, bridge_n);
+    Link(deck_s, bridge_s);
+    Link(bridge_n, bridge_mid);
+    Link(bridge_s, bridge_mid);
+    LinkOneWay(deck_ne, outer_ne);
+    LinkOneWay(deck_nw, outer_nw);
+    LinkOneWay(deck_se, outer_se);
+    LinkOneWay(deck_sw, outer_sw);
+    LinkOneWay(wing_en, outer_ne);
+    LinkOneWay(wing_es, outer_se);
+    LinkOneWay(wing_wn, outer_nw);
+    LinkOneWay(wing_ws, outer_sw);
+    LinkOneWay(keep_e, quad_ne);
+    LinkOneWay(keep_w, quad_sw);
 }
 
 Bool Arena::RayCast(

@@ -174,10 +174,25 @@ void GameScene::DrawOptionsControls()
     }
 }
 
+void GameScene::DrawBotControls(const Bool live)
+{
+    Bool changed = ImGui::SliderInt("Bots", &options.match.botCount, 0, MAX_PLAYERS - 1);
+    changed |= ImGui::SliderFloat(
+        "Bot skill", &options.match.botSkill, 0.0f, 1.0f, SkillName(options.match.botSkill)
+    );
+    if (!changed)
+    {
+        return;
+    }
+    SaveOptions();
+    if (live)
+    {
+        session.SetBots(world, options.match.botCount, options.match.botSkill);
+    }
+}
+
 void GameScene::DrawMatchSettingsControls()
 {
-    ImGui::SliderInt("Bots", &options.match.botCount, 0, MAX_PLAYERS - 1);
-    ImGui::SliderFloat("Bot skill", &options.match.botSkill, 0.0f, 1.0f, SkillName(options.match.botSkill));
     int frag_limit = options.match.fragLimit;
     if (ImGui::SliderInt("Frag limit", &frag_limit, 5, 50))
     {
@@ -219,8 +234,7 @@ void GameScene::DrawMainMenu()
         StartOffline();
     }
     ImGui::PopFont();
-    ImGui::TextColored(ImVec4(0.65f, 0.65f, 0.72f, 1.0f), "Deathmatch against %d %s bots", options.match.botCount,
-                       SkillName(options.match.botSkill));
+    DrawBotControls(false);
     ImGui::Spacing();
     ImGui::SeparatorText("Online");
 
@@ -524,6 +538,11 @@ void GameScene::DrawPauseMenu(const Float width, const Float height)
     else if (session.mode == net::SessionMode::CLIENT)
     {
         ImGui::Text("Connected to %s", session.address.c_str());
+    }
+    if (session.mode == net::SessionMode::OFFLINE || session.mode == net::SessionMode::HOST)
+    {
+        ImGui::SeparatorText("Bots");
+        DrawBotControls(true);
     }
     if (ImGui::CollapsingHeader("Options"))
     {
