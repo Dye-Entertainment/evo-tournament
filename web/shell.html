@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Evo Tournament</title>
 <style>
   :root {
@@ -89,6 +89,122 @@
     opacity: 0;
     transition: opacity 0.3s;
   }
+
+  /* ---- Touch controls (phones and tablets) ---- */
+  body.touch #canvas {
+    width: min(100vw, calc(100dvh * 16 / 9)) !important;
+    height: min(100dvh, calc(100vw * 9 / 16)) !important;
+  }
+  #touch {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.touch.playing #touch { display: block; }
+  #stick-base, #stick-knob {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+  #stick-base {
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid rgba(255, 255, 255, 0.22);
+  }
+  #stick-knob {
+    width: 52px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.28);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+  }
+  .tbtn {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    touch-action: none;
+  }
+  .tbtn.on { background: rgba(255, 140, 40, 0.55); border-color: var(--accent); }
+  #t-fire {
+    width: 88px; height: 88px; font-size: 15px;
+    right: calc(26px + env(safe-area-inset-right)); bottom: 34px;
+    background: rgba(255, 90, 40, 0.25); border-color: rgba(255, 140, 40, 0.7);
+  }
+  #t-jump { width: 64px; height: 64px; right: calc(128px + env(safe-area-inset-right)); bottom: 22px; }
+  #t-dodge { width: 56px; height: 56px; right: calc(118px + env(safe-area-inset-right)); bottom: 100px; }
+  #t-weapons {
+    position: absolute;
+    right: calc(14px + env(safe-area-inset-right));
+    bottom: 140px;
+    display: flex;
+    gap: 6px;
+  }
+  #t-weapons .tbtn, #t-pause, #t-score {
+    position: static;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  #t-top {
+    position: absolute;
+    left: calc(12px + env(safe-area-inset-left));
+    top: calc(10px + env(safe-area-inset-top));
+    display: flex;
+    gap: 8px;
+  }
+  #t-score { width: auto; padding: 0 10px; font-size: 11px; }
+  #rotate {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 18%;
+    text-align: center;
+    color: var(--muted);
+    font-size: 15px;
+    pointer-events: none;
+    z-index: 4;
+  }
+  @media (orientation: portrait) {
+    body.touch #rotate { display: block; }
+  }
+  #t-resume {
+    display: none;
+    position: fixed;
+    left: 50%;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 6;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 10px 28px;
+    border-radius: 10px;
+    border: 2px solid var(--accent);
+    background: rgba(255, 140, 40, 0.85);
+    color: #fff;
+    touch-action: manipulation;
+  }
+  body.touch.can-resume #t-resume { display: block; }
+  body.touch #hint { display: none; }
 </style>
 </head>
 <body>
@@ -98,6 +214,24 @@
   <div id="bar"><div></div></div>
   <p id="status">Loading…</p>
 </div>
+<div id="touch" aria-hidden="true">
+  <div id="stick-base"></div>
+  <div id="stick-knob"></div>
+  <div id="t-top">
+    <div class="tbtn" id="t-pause">&#10073;&#10073;</div>
+    <div class="tbtn" id="t-score" data-code="Tab" data-key="Tab">SCORES</div>
+  </div>
+  <div id="t-weapons">
+    <div class="tbtn" data-code="Digit1" data-key="1">1</div>
+    <div class="tbtn" data-code="Digit2" data-key="2">2</div>
+    <div class="tbtn" data-code="Digit3" data-key="3">3</div>
+  </div>
+  <div class="tbtn" id="t-dodge" data-code="ShiftLeft" data-key="Shift">DODGE</div>
+  <div class="tbtn" id="t-jump" data-code="Space" data-key=" ">JUMP</div>
+  <div class="tbtn" id="t-fire">FIRE</div>
+</div>
+<button id="t-resume" type="button">&#9654; PLAY</button>
+<div id="rotate">Turn your phone sideways to play</div>
 <div id="hint">Click the arena to capture the mouse · Esc releases it</div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -162,6 +296,337 @@
   if (typeof Peer === 'undefined') {
     console.warn('PeerJS failed to load; online play is unavailable.');
   }
+</script>
+<script>
+  // Touch controls. Phones have no pointer lock, so in touch mode the page pretends the canvas is
+  // locked while the touch controls are up: the game then plays exactly as with a captured mouse.
+  // Left thumb: move stick (WASD). Right side: swipe to aim. Buttons send the matching keys, FIRE
+  // sends left mouse button events to the canvas. ?touch=1 forces touch mode, ?touch=0 turns it off.
+  (function () {
+    var forced = /[?&]touch=([01])/.exec(window.location.search);
+    var body = document.body;
+    var touchMode = false;
+    var virtualLock = false;
+    var LOOK_GAIN = 2.5;       // touch pixels -> mouse pixels for aiming
+    var MIN_HOLD_MS = 90;      // the game reads keys once per frame; short taps are held this long
+
+    function enableTouch() {
+      if (touchMode) {
+        return;
+      }
+      touchMode = true;
+      body.classList.add('touch');
+      hint.textContent = 'Tap the arena to play';
+    }
+    if (forced ? forced[1] === '1' : window.matchMedia('(pointer: coarse)').matches) {
+      enableTouch();
+    }
+    if (!forced) {
+      window.addEventListener('touchstart', enableTouch, { passive: true, once: true });
+    }
+
+    // --- Pretend pointer lock -------------------------------------------------------------
+    var lockDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'pointerLockElement');
+    Object.defineProperty(document, 'pointerLockElement', {
+      configurable: true,
+      get: function () {
+        if (touchMode) {
+          return virtualLock ? canvas : null;
+        }
+        return lockDescriptor && lockDescriptor.get ? lockDescriptor.get.call(document) : null;
+      }
+    });
+    var realExitLock = document.exitPointerLock;
+    document.exitPointerLock = function () {
+      if (touchMode) {
+        setLocked(false);
+        return;
+      }
+      if (realExitLock) {
+        return realExitLock.apply(document, arguments);
+      }
+    };
+    var realRequestLock = canvas.requestPointerLock;
+    canvas.requestPointerLock = function () {
+      if (touchMode) {
+        setLocked(true);
+        goFullscreen();
+        return Promise.resolve();
+      }
+      return realRequestLock ? realRequestLock.apply(canvas, arguments) : undefined;
+    };
+
+    function goFullscreen() {
+      var root = document.documentElement;
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        return;
+      }
+      var request = root.requestFullscreen || root.webkitRequestFullscreen;
+      if (!request) {
+        return;
+      }
+      try {
+        var result = request.call(root, { navigationUI: 'hide' });
+        if (result && result.then) {
+          result.then(function () {
+            if (screen.orientation && screen.orientation.lock) {
+              screen.orientation.lock('landscape').catch(function () {});
+            }
+          }, function () {});
+        }
+      } catch (err) {
+      }
+    }
+
+    // --- Keys and mouse button ---------------------------------------------------------------
+    var held = {};
+    var pressedAt = {};
+    var pendingRelease = {};
+    function sendKey(code, key, down) {
+      window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {
+        code: code, key: key, bubbles: true, cancelable: true
+      }));
+    }
+    function sendMouse(code, key, down) {
+      var rect = canvas.getBoundingClientRect();
+      canvas.dispatchEvent(new PointerEvent(down ? 'pointerdown' : 'pointerup', {
+        pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, buttons: down ? 1 : 0,
+        clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2, bubbles: true
+      }));
+    }
+    function setInput(code, key, down, send) {
+      send = send || sendKey;
+      if (down) {
+        if (pendingRelease[code]) {
+          clearTimeout(pendingRelease[code]);
+          delete pendingRelease[code];
+          return;
+        }
+        if (held[code]) {
+          return;
+        }
+        held[code] = true;
+        pressedAt[code] = performance.now();
+        send(code, key, true);
+        return;
+      }
+      if (!held[code] || pendingRelease[code]) {
+        return;
+      }
+      var release = function () {
+        delete pendingRelease[code];
+        held[code] = false;
+        send(code, key, false);
+      };
+      var wait = MIN_HOLD_MS - (performance.now() - pressedAt[code]);
+      if (wait > 0) {
+        pendingRelease[code] = setTimeout(release, wait);
+      } else {
+        release();
+      }
+    }
+
+    function addLook(dx, dy) {
+      var state = Module.pointerCapture;
+      if (state && virtualLock) {
+        state.dx += dx * LOOK_GAIN;
+        state.dy += dy * LOOK_GAIN;
+      }
+    }
+
+    // --- The touch layer -------------------------------------------------------------------
+    var layer = document.getElementById('touch');
+    var base = document.getElementById('stick-base');
+    var knob = document.getElementById('stick-knob');
+    var stick = null;   // { id, x, y }
+    var looks = {};     // pointerId -> { x, y } for aiming fingers (including the fire button)
+    var STICK_RADIUS = 56;
+    var stickKeys = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' };
+
+    function restStick() {
+      var h = window.innerHeight;
+      placeStick(base, 30 + 80, h - 30 - 70);
+      placeStick(knob, 30 + 80, h - 30 - 70);
+      base.style.opacity = knob.style.opacity = '0.5';
+    }
+    function placeStick(el, x, y) {
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+    }
+    function setStickKeys(nx, ny) {
+      // Hysteresis: a direction turns on past 45% of the radius and off below 25%, so small
+      // wobbles near the edge don't re-press keys (a quick double press is a dodge).
+      var axes = [['KeyD', nx], ['KeyA', -nx], ['KeyS', ny], ['KeyW', -ny]];
+      axes.forEach(function (axis) {
+        var code = axis[0];
+        var value = axis[1];
+        if (held[code] && !pendingRelease[code]) {
+          if (value < 0.25) {
+            setInput(code, stickKeys[code], false);
+          }
+        } else if (value > 0.45) {
+          setInput(code, stickKeys[code], true);
+        }
+      });
+    }
+    function releaseStick() {
+      stick = null;
+      Object.keys(stickKeys).forEach(function (code) { setInput(code, stickKeys[code], false); });
+      restStick();
+    }
+
+    layer.addEventListener('pointerdown', function (e) {
+      if (e.target !== layer) {
+        return;
+      }
+      e.preventDefault();
+      layer.setPointerCapture(e.pointerId);
+      if (e.clientX < window.innerWidth * 0.4 && !stick) {
+        stick = { id: e.pointerId, x: e.clientX, y: e.clientY };
+        placeStick(base, e.clientX, e.clientY);
+        placeStick(knob, e.clientX, e.clientY);
+        base.style.opacity = knob.style.opacity = '1';
+      } else {
+        looks[e.pointerId] = { x: e.clientX, y: e.clientY };
+      }
+    });
+    layer.addEventListener('pointermove', function (e) {
+      if (stick && e.pointerId === stick.id) {
+        var dx = e.clientX - stick.x;
+        var dy = e.clientY - stick.y;
+        var length = Math.sqrt(dx * dx + dy * dy);
+        if (length > STICK_RADIUS) {
+          dx *= STICK_RADIUS / length;
+          dy *= STICK_RADIUS / length;
+        }
+        placeStick(knob, stick.x + dx, stick.y + dy);
+        setStickKeys(dx / STICK_RADIUS, dy / STICK_RADIUS);
+      } else if (looks[e.pointerId]) {
+        var last = looks[e.pointerId];
+        addLook(e.clientX - last.x, e.clientY - last.y);
+        last.x = e.clientX;
+        last.y = e.clientY;
+      }
+    });
+    function layerEnd(e) {
+      if (stick && e.pointerId === stick.id) {
+        releaseStick();
+      }
+      delete looks[e.pointerId];
+    }
+    layer.addEventListener('pointerup', layerEnd);
+    layer.addEventListener('pointercancel', layerEnd);
+
+    // Buttons. Sliding a finger on FIRE also aims, like a twin-stick shooter.
+    Array.prototype.forEach.call(layer.querySelectorAll('.tbtn'), function (el) {
+      var code = el.getAttribute('data-code');
+      var key = el.getAttribute('data-key');
+      var isFire = el.id === 't-fire';
+      var isPause = el.id === 't-pause';
+      el.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        el.setPointerCapture(e.pointerId);
+        el.classList.add('on');
+        if (isPause) {
+          return;
+        }
+        if (isFire) {
+          looks[e.pointerId] = { x: e.clientX, y: e.clientY };
+          setInput('Mouse0', '', true, sendMouse);
+        } else {
+          setInput(code, key, true);
+        }
+        if (navigator.vibrate) {
+          navigator.vibrate(8);
+        }
+      });
+      el.addEventListener('pointermove', function (e) {
+        if (isFire && looks[e.pointerId]) {
+          var last = looks[e.pointerId];
+          addLook(e.clientX - last.x, e.clientY - last.y);
+          last.x = e.clientX;
+          last.y = e.clientY;
+        }
+      });
+      function end(e) {
+        if (!el.classList.contains('on')) {
+          return;
+        }
+        el.classList.remove('on');
+        if (isPause) {
+          if (e.type === 'pointerup') {
+            setLocked(false);   // the game sees the "mouse" released and opens its menu
+          }
+          return;
+        }
+        if (isFire) {
+          delete looks[e.pointerId];
+          setInput('Mouse0', '', false, sendMouse);
+        } else {
+          setInput(code, key, false);
+        }
+      }
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointercancel', end);
+      el.addEventListener('lostpointercapture', end);
+    });
+
+    function releaseAll() {
+      releaseStick();
+      looks = {};
+      Object.keys(held).forEach(function (code) {
+        if (held[code]) {
+          setInput(code, '', false, code === 'Mouse0' ? sendMouse : sendKey);
+        }
+      });
+      Array.prototype.forEach.call(layer.querySelectorAll('.tbtn.on'), function (el) { el.classList.remove('on'); });
+    }
+
+    function setLocked(locked) {
+      if (virtualLock === locked) {
+        return;
+      }
+      virtualLock = locked;
+      body.classList.toggle('playing', locked);
+      if (!locked) {
+        releaseAll();
+      } else {
+        restStick();
+      }
+      document.dispatchEvent(new Event('pointerlockchange'));
+    }
+
+    // While a match wants the mouse but the touch controls are down (the game shows its menu),
+    // offer a big PLAY button; tapping the arena outside the menu works too.
+    var resume = document.getElementById('t-resume');
+    resume.addEventListener('click', function () {
+      setLocked(true);
+      goFullscreen();
+    });
+    setInterval(function () {
+      var state = Module.pointerCapture;
+      body.classList.toggle('can-resume', touchMode && !!state && state.wantLock && !virtualLock);
+    }, 200);
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden && touchMode) {
+        setLocked(false);
+      }
+    });
+    window.addEventListener('resize', function () {
+      if (!stick) {
+        restStick();
+      }
+    });
+    // No pinch zoom or long-press menus.
+    document.addEventListener('touchmove', function (e) {
+      if (e.touches.length > 1) { e.preventDefault(); }
+    }, { passive: false });
+    document.addEventListener('contextmenu', function (e) {
+      if (touchMode) { e.preventDefault(); }
+    });
+  })();
 </script>
 {{{ SCRIPT }}}
 </body>

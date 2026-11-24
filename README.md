@@ -24,6 +24,13 @@ multi-level arena. It runs natively on Linux and in the browser.
 | Scoreboard | Tab |
 | Menu | Esc (in the browser, Esc releases the mouse and opens the menu) |
 
+On phones and tablets the browser version shows touch controls: drag on the left side to move
+(flick the stick twice for a dodge), swipe on the right side to aim, and use the FIRE, JUMP,
+DODGE, 1 2 3, SCORES and pause buttons. Tap **PLAY** (or the arena) to start; aim speed follows
+the *Mouse sensitivity* option. Joining by typing a code needs a keyboard, but invite links
+(`?join=CODE`) work. Add `?touch=1` or `?touch=0` to the address to force the touch controls on
+or off.
+
 ### Weapons and pickups
 
 - **Pulse Rifle**: rapid hitscan rifle. You spawn with it.
