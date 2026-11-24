@@ -5,13 +5,12 @@
 #include "net/session.h"
 #include "render/effects.h"
 #include "render/scene_renderer.h"
+#include "ui/evo_ui.h"
 
 #include "compiled/warning_off.h"
 #include <deque>
 #include <string>
 #include "compiled/warning_on.h"
-
-struct ImFont;
 
 namespace evo
 {
@@ -84,7 +83,7 @@ class GameScene final : public core::Scene
         Float until = 0.0f;
     };
 
-    void EnsureImGui();
+    void InitializeUi();
     void LoadOptions();
     void SaveOptions() const;
     InputFrame ReadInput(Float delta_seconds);
@@ -127,19 +126,15 @@ class GameScene final : public core::Scene
     void DrawProjectiles();
     void DrawViewmodel();
 
-    void DrawUi();
-    void DrawMainMenu();
-    void DrawConnecting();
-    void DrawHud();
-    void DrawCrosshair(Float width, Float height);
-    void DrawKillFeed(Float width);
-    void DrawScoreboard(Float width, Float height);
-    void DrawPauseMenu(Float width, Float height);
-    void DrawNameplates(Float width, Float height);
-    void DrawErrorPopup();
-    void DrawOptionsControls();
-    void DrawBotControls(Bool live);
-    void DrawMatchSettingsControls();
+    // The menus and the HUD live in resources/ui/evo.rml; these fill in its state.
+    void UpdateUi();
+    void FillHud();
+    // Copies what the player changed in the menus into the options; true if the forms need a refresh.
+    Bool SyncUiForms();
+    [[nodiscard]]
+    Bool IsTypingInUi() const;
+    [[nodiscard]]
+    Bool IsPointerOverUi() const;
 
     World world;
     net::Session session;
@@ -149,20 +144,16 @@ class GameScene final : public core::Scene
     Options options;
     Screen screen = Screen::MAIN_MENU;
     Bool rendererReady = false;
-    Bool imguiReady = false;
+    Bool uiReady = false;
     Bool menuOpen = false;
     Bool wasCaptured = false;
     Bool fireArmed = false;
     Bool showScoreboard = false;
     Bool autoStartDone = false;
-    ImFont *font = nullptr;
     std::string errorMessage;
     std::string joinAddress;
     std::string hostAddress;
     std::string roomCode;
-    char nameBuffer[32]{};
-    char joinBuffer[64]{};
-    char hostBuffer[32]{};
     std::array<Bool, 16> previousKeys{};
     std::array<Float, 4> lastTapTime{};
     Bool previousFire = false;
@@ -187,5 +178,6 @@ class GameScene final : public core::Scene
     std::deque<std::pair<std::string, Float>> notices;
     Banner banner;
     Banner pickupBanner;
+    EvoUi ui;
 };
 } // namespace evo

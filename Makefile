@@ -11,7 +11,7 @@ all: linux
 
 evogen:
 	cmake -S evogine/tools/evogen -G Ninja -B build-evogen --toolchain=$(LINUX_TOOLCHAIN) \
-		-DCMAKE_BUILD_TYPE=Release -DIMGUI_ENABLED=ON -DIMGUI_EXTENSION_ENABLED=ON
+		-DCMAKE_BUILD_TYPE=Release
 	ninja -C build-evogen
 
 linux:

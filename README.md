@@ -86,15 +86,23 @@ and open it in a browser.
 Engine fixes that this game needs live in `patches/`. CMake applies them to the submodule
 automatically; see `patches/README.md`.
 
+## UI
+
+The menus and the HUD use the engine's RmlUi backend. `resources/ui/evo.rml` and `evo.rcss`
+describe them; the game fills in a data model every frame and the form controls (name, sliders,
+room code) write straight back into it. The UI scales down on small windows such as phones.
+
 ## Layout
 
 ```
-src/game/    match rules, movement, bots, arena, game scene, HUD and menus
+src/game/    match rules, movement, bots, arena, game scene; game_scene_ui.cpp fills the UI
+src/ui/      the RmlUi data model behind the menus and the HUD
 src/net/     transports (UDP, WebRTC bridge) and the host/client session
 src/render/  procedural meshes, renderer wrapper, particle effects
 src/audio/   sound playback on the engine's miniaudio backend
 web/         HTML shell and the PeerJS bridge (emscripten JS library)
-resources/   shaders, synthesized sounds, font, engine component templates
+resources/   shaders, synthesized sounds, font, UI documents (ui/evo.rml, evo.rcss),
+             engine component templates
 tools/       generate_sounds.py (the sound effects are synthesized by this script)
 ```
 

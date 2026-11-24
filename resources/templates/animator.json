@@ -18,6 +18,7 @@
      }
    },
    "includes":[
+	  "ecs/core/types.h",
 	  "resource/asset_proxy.h",
 	  "resource/material.h",
 	  "map",

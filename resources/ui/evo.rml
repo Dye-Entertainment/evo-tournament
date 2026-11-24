@@ -1,0 +1,265 @@
+<rml>
+<head>
+    <title>Evo Tournament</title>
+    <link type="text/rcss" href="evo.rcss"/>
+</head>
+<body data-model="evo">
+
+<!-- ================= HUD ================= -->
+<div id="hud" data-if="screen == 'match'">
+    <div data-if="damage > 0" data-style-opacity="damage * 0.43">
+        <div class="flash left"></div><div class="flash right"></div>
+        <div class="flash top"></div><div class="flash bottom"></div>
+    </div>
+
+    <div data-for="n : nameplates">
+        <div class="nameplate" data-style-left="n.x + 'dp'" data-style-top="(n.y - n.size) + 'dp'"
+             data-style-font-size="n.size + 'dp'" data-style-color="n.color" data-style-opacity="n.alpha">{{ n.name }}</div>
+    </div>
+
+    <div data-if="alive">
+        <div id="crosshair">
+            <div data-if="crosshair == 'rifle'">
+                <div class="h" style="left: -11dp; width: 7dp;"></div>
+                <div class="h" style="left: 4dp; width: 7dp;"></div>
+                <div class="v" style="top: -11dp; height: 7dp;"></div>
+                <div class="v" style="top: 4dp; height: 7dp;"></div>
+            </div>
+            <div data-if="crosshair == 'nova'">
+                <div class="h" style="left: -14dp; width: 8dp;"></div>
+                <div class="h" style="left: 6dp; width: 8dp;"></div>
+                <div class="v" style="top: 6dp; height: 8dp;"></div>
+                <div class="dot"></div>
+            </div>
+            <div data-if="crosshair == 'rail'">
+                <div class="ring"></div>
+                <div class="dot"></div>
+            </div>
+            <div data-if="hit > 0" data-style-opacity="hit">
+                <div class="hit" style="left: 11dp; top: 11dp; transform: rotate(45deg);"></div>
+                <div class="hit" style="left: -11dp; top: -11dp; transform: rotate(45deg);"></div>
+                <div class="hit" style="left: 11dp; top: -11dp; transform: rotate(-45deg);"></div>
+                <div class="hit" style="left: -11dp; top: 11dp; transform: rotate(-45deg);"></div>
+            </div>
+        </div>
+
+        <div id="health" class="box">
+            <div class="cross-h"></div><div class="cross-v"></div>
+            <div class="number hp" data-class-low="healthLow" data-style-opacity="healthAlpha">{{ health }}</div>
+            <div class="shield"></div>
+            <div class="number ap" data-class-empty="armor <= 0">{{ armor }}</div>
+        </div>
+
+        <div id="slots">
+            <div data-for="s, i : slots" class="slot" data-class-selected="s.selected" data-class-missing="!s.owned"
+                 data-style-left="(i * 78) + 'dp'">
+                <div class="label" data-style-color="s.color">{{ s.label }}</div>
+                <div class="count">{{ s.ammo }}</div>
+            </div>
+        </div>
+        <div id="ammo" class="box">
+            <div class="name" data-style-color="weaponColor">{{ weaponName }}</div>
+            <div class="number" data-class-low="ammo <= 0">{{ ammo }}</div>
+        </div>
+    </div>
+    <div id="respawn" data-if="respawn" data-style-opacity="respawnAlpha">Click to respawn</div>
+
+    <div id="timer" class="box">
+        <div class="time" data-class-low="timerLow">{{ timer }}</div>
+        <div class="limit">FRAG LIMIT {{ matchFragLimit }}</div>
+    </div>
+
+    <div id="rank" class="box" data-if="hasRank">
+        <div class="place" data-class-accent="rankFirst">{{ rank }}</div>
+        <div class="of">{{ rankOf }}</div>
+        <div class="frags">{{ fragsText }}</div>
+        <div class="lead" data-class-good="leadGood">{{ lead }}</div>
+    </div>
+
+    <div id="feed">
+        <div class="entry" data-for="f : feed" data-class-involved="f.involved" data-style-opacity="f.alpha">
+            <span class="pill"><span data-if="!f.suicide" data-style-color="f.killerColor">{{ f.killer }}</span><span class="weapon">{{ f.weapon }}</span><span data-style-color="f.victimColor">{{ f.victim }}</span></span>
+        </div>
+    </div>
+
+    <div id="notices">
+        <div class="status" data-if="status != ''">{{ status }}</div>
+        <div class="notice" data-for="n : notices" data-style-opacity="n.alpha">{{ n.text }}</div>
+    </div>
+
+    <div id="banner" data-if="bannerAlpha > 0" data-style-opacity="bannerAlpha">
+        <div class="main" data-style-color="bannerColor">{{ banner }}</div>
+        <div class="sub" data-if="bannerSub != ''">{{ bannerSub }}</div>
+    </div>
+    <div id="pickup" data-if="pickupAlpha > 0" data-style-opacity="pickupAlpha" data-style-color="pickupColor">{{ pickup }}</div>
+
+    <div id="scoreboard" data-if="scoreboard">
+        <div class="board">
+            <div class="title">{{ scoreTitle }}</div>
+            <div class="score-row score-head">
+                <span class="rank">#</span><span class="name">PLAYER</span>
+                <span class="frags">FRAGS</span><span class="deaths">DEATHS</span>
+            </div>
+            <div class="score-row" data-for="r : scores" data-class-local="r.local">
+                <span class="rank">{{ r.rank }}</span>
+                <span class="swatch" data-style-background-color="r.color"></span>
+                <span class="name" data-class-accent="r.local">{{ r.name }}<span class="tag" data-if="r.tag != ''">{{ r.tag }}</span></span>
+                <span class="frags">{{ r.frags }}</span>
+                <span class="deaths">{{ r.deaths }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= Pause menu ================= -->
+<div id="pause" class="layer" data-if="screen == 'match' &amp;&amp; pause">
+    <div class="panel">
+        <h2>{{ pauseTitle }}</h2>
+        <div class="gap"></div>
+        <div data-if="isHost">
+            <div class="section">Invite friends</div>
+            <div data-if="roomCodes">
+                <div class="center big">{{ roomCodeText }}</div>
+                <div class="row">
+                    <div class="link grow">{{ inviteLink }}</div>
+                    <div class="button" data-event-click="action('copy')">Copy</div>
+                </div>
+            </div>
+            <div data-if="!roomCodes">Friends join with  &lt;your-ip&gt;:{{ roomCodeText }}</div>
+            <div class="muted">{{ friends }}</div>
+        </div>
+        <div data-if="connectedTo != ''">{{ connectedTo }}</div>
+        <div data-if="showBots">
+            <div class="section">Bots</div>
+            <div class="slider">
+                <div class="control"><input type="range" min="0" max="11" step="1" data-value="botCount"/><div class="value">{{ botCount }}</div></div>
+                <span class="name">Bots</span>
+            </div>
+            <div class="slider">
+                <div class="control"><input type="range" min="0" max="1" step="0.01" data-value="botSkill"/><div class="value">{{ skillName }}</div></div>
+                <span class="name">Bot skill</span>
+            </div>
+        </div>
+        <div class="header" data-event-click="showPauseOptions = !showPauseOptions">
+            <span class="arrow">{{ showPauseOptions ? 'v' : '&gt;' }}</span>Options
+        </div>
+        <div data-if="showPauseOptions">
+            <div class="slider">
+                <div class="control"><input type="range" min="0.1" max="5" step="0.05" data-value="sensitivity"/><div class="value">{{ sensitivity | format(2) }}</div></div>
+                <span class="name">Mouse sensitivity</span>
+            </div>
+            <div class="slider">
+                <div class="control"><input type="range" min="80" max="120" step="1" data-value="fov"/><div class="value">{{ fov | format(0) }}</div></div>
+                <span class="name">Field of view</span>
+            </div>
+            <div class="slider">
+                <div class="control"><input type="range" min="0" max="1" step="0.01" data-value="volume"/><div class="value">{{ volume | format(2) }}</div></div>
+                <span class="name">Volume</span>
+            </div>
+            <label class="check"><input type="checkbox" data-checked="invertY"/>Invert mouse</label>
+        </div>
+        <div class="gap"></div>
+        <div class="button" data-if="showResume" data-event-click="action('resume')">Resume</div>
+        <div class="button" data-event-click="action('leave')">Leave match</div>
+    </div>
+</div>
+
+<!-- ================= Main menu ================= -->
+<div id="menu" class="layer" data-if="screen == 'menu'">
+    <div class="panel">
+        <h1>EVO TOURNAMENT</h1>
+        <div class="subtitle">Arena deathmatch  -  built on the evogine engine</div>
+        <div class="rule"></div>
+
+        <div class="label">Your name</div>
+        <input type="text" class="text" maxlength="15" data-value="name"/>
+        <div class="gap"></div>
+
+        <div class="button huge" data-event-click="action('instant')">INSTANT ACTION</div>
+        <div class="slider">
+            <div class="control"><input type="range" min="0" max="11" step="1" data-value="botCount"/><div class="value">{{ botCount }}</div></div>
+            <span class="name">Bots</span>
+        </div>
+        <div class="slider">
+            <div class="control"><input type="range" min="0" max="1" step="0.01" data-value="botSkill"/><div class="value">{{ skillName }}</div></div>
+            <span class="name">Bot skill</span>
+        </div>
+
+        <div class="section">Online</div>
+        <div class="row">
+            <span data-if="!roomCodes">UDP port</span>
+            <input data-if="!roomCodes" type="text" class="text port" maxlength="6" data-value="hostPort"/>
+            <div class="button large grow first" data-event-click="action('host')">HOST ONLINE MATCH</div>
+        </div>
+        <div class="row">
+            <input type="text" class="text" maxlength="63" data-value="joinText" data-attr-placeholder="roomCodes ? 'Room code' : 'host:port'"/>
+            <div class="button large" data-event-click="action('join')">JOIN</div>
+        </div>
+        <div class="help">{{ onlineHelp }}</div>
+
+        <div class="header" data-event-click="showMatch = !showMatch">
+            <span class="arrow">{{ showMatch ? 'v' : '&gt;' }}</span>Match settings
+        </div>
+        <div data-if="showMatch">
+            <div class="slider">
+                <div class="control"><input type="range" min="5" max="50" step="1" data-value="fragLimit"/><div class="value">{{ fragLimit }}</div></div>
+                <span class="name">Frag limit</span>
+            </div>
+            <div class="slider">
+                <div class="control"><input type="range" min="2" max="30" step="1" data-value="timeLimit"/><div class="value">{{ timeLimit }}</div></div>
+                <span class="name">Time limit (min)</span>
+            </div>
+        </div>
+        <div class="header" data-event-click="showOptions = !showOptions">
+            <span class="arrow">{{ showOptions ? 'v' : '&gt;' }}</span>Options
+        </div>
+        <div data-if="showOptions">
+            <div class="slider">
+                <div class="control"><input type="range" min="0.1" max="5" step="0.05" data-value="sensitivity"/><div class="value">{{ sensitivity | format(2) }}</div></div>
+                <span class="name">Mouse sensitivity</span>
+            </div>
+            <div class="slider">
+                <div class="control"><input type="range" min="80" max="120" step="1" data-value="fov"/><div class="value">{{ fov | format(0) }}</div></div>
+                <span class="name">Field of view</span>
+            </div>
+            <div class="slider">
+                <div class="control"><input type="range" min="0" max="1" step="0.01" data-value="volume"/><div class="value">{{ volume | format(2) }}</div></div>
+                <span class="name">Volume</span>
+            </div>
+            <label class="check"><input type="checkbox" data-checked="invertY"/>Invert mouse</label>
+        </div>
+        <div class="header" data-event-click="showControls = !showControls">
+            <span class="arrow">{{ showControls ? 'v' : '&gt;' }}</span>Controls
+        </div>
+        <div class="bullets" data-if="showControls">
+            <div>- WASD / arrows - move,  mouse - aim,  left click - fire</div>
+            <div>- Space - jump, press again in the air to double jump</div>
+            <div>- Double-tap a direction or press Shift - dodge</div>
+            <div>- Jump along a wall while holding W - wall run, Space to kick off</div>
+            <div>- 1 2 3 / mouse wheel / Q - switch weapons</div>
+            <div>- Tab - scoreboard,  Esc - menu</div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= Connecting ================= -->
+<div id="connecting" class="layer" data-if="screen == 'connecting'">
+    <div class="panel">
+        <h2>CONNECTING</h2>
+        <div class="gap"></div>
+        <div class="center">{{ connectStatus }}</div>
+        <div class="gap"></div>
+        <div class="button" data-event-click="action('cancel')">Cancel</div>
+    </div>
+</div>
+
+<!-- ================= Errors ================= -->
+<div id="error" data-if="error != ''">
+    <div class="panel">
+        <div class="error-text">{{ error }}</div>
+        <div class="button" data-event-click="action('error-ok')">OK</div>
+    </div>
+</div>
+
+</body>
+</rml>

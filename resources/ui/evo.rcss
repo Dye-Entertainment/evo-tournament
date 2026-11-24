@@ -1,0 +1,288 @@
+/* Evo Tournament UI. Sizes are in dp: the game scales them down on small windows. */
+
+/* RmlUi has no default style sheet. */
+div, p, h1, h2, ul, li { display: block; }
+
+body
+{
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    font-family: "DejaVu Sans";
+    font-weight: bold;
+    font-size: 17dp;
+    color: #ffffff;
+    pointer-events: none;
+}
+.accent { color: #ff8c28; }
+.dim { color: #aaaab9; }
+.muted { color: #9999ad; }
+.shadow { font-effect: shadow(2dp 2dp #000000aa); }
+
+/* ---------- Menus ---------- */
+
+.layer
+{
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.panel
+{
+    pointer-events: auto;
+    max-height: 96%;
+    overflow-y: auto;
+    padding: 18dp 22dp;
+    background-color: #0f0f17eb;
+    border: 1dp #ff8c2659;
+    border-radius: 10dp;
+}
+#menu .panel { width: 560dp; }
+#connecting .panel { width: 460dp; }
+#pause .panel { width: 480dp; }
+#pause { background-color: #0000005a; }
+
+h1 { text-align: center; font-size: 46dp; line-height: 54dp; color: #ff8c28; }
+h2 { text-align: center; font-size: 28dp; line-height: 36dp; color: #ff8c28; }
+.subtitle { text-align: center; font-size: 15dp; color: #aaaab9; }
+.center { text-align: center; }
+.big { font-size: 26dp; line-height: 34dp; }
+.gap { height: 9dp; }
+.rule { height: 1dp; margin: 9dp 0; background-color: #ff8c264d; }
+.section
+{
+    margin: 12dp 0 8dp 0;
+    padding-bottom: 4dp;
+    border-bottom: 1dp #ff8c264d;
+    color: #ffffff;
+}
+.label { margin-bottom: 6dp; }
+.help { font-size: 15dp; line-height: 21dp; color: #9999ad; margin: 6dp 0; }
+.error-text { color: #ff7359; line-height: 24dp; margin-bottom: 9dp; }
+
+.button
+{
+    display: block;
+    height: 34dp;
+    line-height: 34dp;
+    margin: 0 0 9dp 0;
+    text-align: center;
+    background-color: #d96b1ad9;
+    border-radius: 6dp;
+    cursor: pointer;
+}
+.button:hover { background-color: #ff8c2e; }
+.button:active { background-color: #bf590d; }
+.button.huge { height: 48dp; line-height: 48dp; font-size: 21dp; }
+.button.large { height: 40dp; line-height: 40dp; font-size: 19dp; }
+
+.row { display: flex; align-items: center; margin-bottom: 9dp; }
+.row .grow { flex: 1; }
+.row .button { margin: 0 0 0 10dp; padding: 0 16dp; }
+.row .button.first { margin-left: 0; }
+
+input.text
+{
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: 34dp;
+    padding: 7dp 10dp;
+    background-color: #242430;
+    border-radius: 6dp;
+    color: #ffffff;
+    cursor: text;
+    pointer-events: auto;
+}
+input.text:hover { background-color: #33333f; }
+input.text:focus { background-color: #3d3a47; }
+input.text:placeholder-shown { color: #8c8c99; }
+input.text selection { background-color: #ff8c2880; color: #ffffff; }
+.row input.text { flex: 1; }
+.row input.text.port { flex: 0 0 120dp; margin: 0 10dp; }
+
+/* Sliders: the track, the value and the label, like the old ImGui sliders. */
+.slider { display: flex; align-items: center; margin-bottom: 9dp; }
+.slider .control
+{
+    position: relative;
+    flex: 0 0 250dp;
+    height: 30dp;
+    background-color: #242430;
+    border-radius: 6dp;
+}
+.slider .control:hover { background-color: #33333f; }
+.slider .value
+{
+    position: absolute;
+    left: 0; top: 0; width: 250dp;
+    line-height: 30dp;
+    text-align: center;
+    pointer-events: none;
+}
+.slider .name { margin-left: 10dp; }
+input.range
+{
+    position: absolute;
+    left: 0; top: 0;
+    width: 250dp;
+    height: 30dp;
+    cursor: pointer;
+}
+input.range slidertrack { height: 30dp; }
+input.range sliderbar
+{
+    margin-top: 4dp;
+    width: 14dp;
+    height: 22dp;
+    background-color: #ff8c26;
+    border-radius: 6dp;
+}
+input.range sliderbar:hover, input.range sliderbar:active { background-color: #ffb34d; }
+input.range sliderarrowdec, input.range sliderarrowinc { width: 0; height: 0; }
+
+.check { display: flex; align-items: center; margin-bottom: 9dp; cursor: pointer; }
+input.checkbox
+{
+    width: 26dp;
+    height: 26dp;
+    margin-right: 10dp;
+    background-color: #242430;
+    border-radius: 6dp;
+    cursor: pointer;
+}
+input.checkbox:hover { background-color: #33333f; }
+input.checkbox:checked { background-color: #ff9933; border: 6dp #242430; }
+
+.header
+{
+    height: 30dp;
+    line-height: 30dp;
+    padding: 0 10dp;
+    margin-bottom: 6dp;
+    background-color: #4d3324cc;
+    border-radius: 4dp;
+    cursor: pointer;
+}
+.header:hover { background-color: #73472ae6; }
+.header .arrow { display: inline-block; width: 22dp; color: #ff9933; }
+.bullets div { font-size: 15dp; line-height: 22dp; padding-left: 16dp; }
+
+.link
+{
+    padding: 7dp 10dp;
+    background-color: #242430;
+    border-radius: 6dp;
+    font-size: 13dp;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+scrollbarvertical { width: 8dp; margin-left: 4dp; }
+scrollbarvertical slidertrack { background-color: #ffffff10; border-radius: 4dp; }
+scrollbarvertical sliderbar { background-color: #ff8c2680; border-radius: 4dp; }
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; height: 0; }
+
+#error
+{
+    position: absolute;
+    left: 0; right: 0; bottom: 8%;
+    display: flex;
+    justify-content: center;
+}
+#error .panel { width: 520dp; }
+
+/* ---------- HUD ---------- */
+
+#hud { position: absolute; left: 0; top: 0; right: 0; bottom: 0; font-effect: shadow(2dp 2dp #000000aa); }
+.box { position: absolute; background-color: #08080e96; border-radius: 10dp; }
+
+.flash { position: absolute; }
+.flash.left { left: 0; top: 0; bottom: 0; width: 160dp; decorator: linear-gradient(to right, #c80000, #c8000000); }
+.flash.right { right: 0; top: 0; bottom: 0; width: 160dp; decorator: linear-gradient(to left, #c80000, #c8000000); }
+.flash.top { left: 0; right: 0; top: 0; height: 160dp; decorator: linear-gradient(to bottom, #c80000, #c8000000); }
+.flash.bottom { left: 0; right: 0; bottom: 0; height: 160dp; decorator: linear-gradient(to top, #c80000, #c8000000); }
+
+/* Crosshair: lines drawn as thin boxes around the screen centre. */
+#crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#crosshair div { position: absolute; background-color: #ffffffe6; border: 1dp #000000aa; box-sizing: content-box; }
+#crosshair .h { height: 2dp; margin-top: -2dp; }
+#crosshair .v { width: 2dp; margin-left: -2dp; }
+#crosshair .ring { left: -10dp; top: -10dp; width: 16dp; height: 16dp; border-radius: 10dp; background-color: transparent; border: 2dp #ffffffe6; }
+#crosshair .dot { left: -2dp; top: -2dp; width: 3dp; height: 3dp; border-radius: 2dp; border-width: 0; }
+#crosshair .hit { width: 11dp; height: 3dp; margin-top: -2dp; margin-left: -6dp; background-color: #ff3c32; border-width: 0; }
+
+#health { left: 24dp; bottom: 24dp; width: 330dp; height: 72dp; }
+#health .cross-h { position: absolute; left: 20dp; top: 30dp; width: 24dp; height: 10dp; background-color: #ff463c; }
+#health .cross-v { position: absolute; left: 27dp; top: 23dp; width: 10dp; height: 24dp; background-color: #ff463c; }
+#health .shield { position: absolute; left: 180dp; top: 22dp; width: 24dp; height: 22dp; background-color: #ffcd3c; border-radius: 3dp 3dp 12dp 12dp; }
+.number { position: absolute; top: 6dp; font-size: 46dp; line-height: 56dp; }
+#health .hp { left: 54dp; }
+#health .ap { left: 214dp; }
+.low { color: #ff463c; }
+.empty { color: #aaaab999; }
+
+#ammo { right: 24dp; bottom: 24dp; width: 230dp; height: 72dp; }
+#ammo .name { position: absolute; left: 18dp; top: 10dp; font-size: 15dp; }
+#ammo .number { right: 18dp; text-align: right; }
+
+#slots { position: absolute; right: 24dp; bottom: 104dp; width: 230dp; height: 36dp; }
+.slot { position: absolute; top: 0; width: 72dp; height: 36dp; background-color: #08080e96; border-radius: 6dp; }
+.slot.selected { background-color: #ff8c2878; }
+.slot .label { position: absolute; left: 6dp; top: 3dp; font-size: 12dp; margin: 0; }
+.slot .count { position: absolute; right: 6dp; top: 16dp; font-size: 14dp; }
+.slot.missing .label, .slot.missing .count { color: #6e6e78a0; }
+
+#respawn { position: absolute; left: 0; right: 0; top: 62%; text-align: center; font-size: 24dp; }
+
+#timer { left: 50%; margin-left: -70dp; top: 12dp; width: 140dp; height: 60dp; text-align: center; }
+#timer .time { font-size: 30dp; line-height: 38dp; margin-top: 2dp; }
+#timer .limit { font-size: 12dp; color: #aaaab9; }
+
+#rank { right: 14dp; top: 12dp; width: 186dp; height: 86dp; }
+#rank .place { position: absolute; left: 14dp; top: 2dp; font-size: 36dp; line-height: 46dp; }
+#rank .of { position: absolute; right: 14dp; top: 10dp; font-size: 14dp; color: #aaaab9; }
+#rank .frags { position: absolute; left: 14dp; top: 52dp; font-size: 18dp; }
+#rank .lead { position: absolute; right: 14dp; top: 54dp; font-size: 16dp; color: #ff7864; }
+#rank .lead.good { color: #78ff8c; }
+
+#feed { position: absolute; right: 14dp; top: 112dp; width: 600dp; text-align: right; }
+#feed .entry { margin-bottom: 5dp; }
+#feed .entry span.pill { display: inline-block; padding: 3dp 10dp; background-color: #08080e96; border-radius: 5dp; font-size: 16dp; }
+#feed .entry.involved span.pill { background-color: #783c0a96; }
+#feed .weapon { color: #aaaab9; }
+
+.nameplate { position: absolute; width: 300dp; margin-left: -150dp; text-align: center; }
+
+#notices { position: absolute; left: 20dp; top: 18dp; }
+#notices .status { color: #78dcff; font-size: 16dp; margin-bottom: 6dp; }
+#notices .notice { font-size: 15dp; margin-bottom: 4dp; }
+
+#banner { position: absolute; left: 0; right: 0; top: 26%; text-align: center; }
+#banner .main { font-size: 34dp; line-height: 44dp; }
+#banner .sub { font-size: 18dp; }
+#pickup { position: absolute; left: 0; right: 0; bottom: 130dp; text-align: center; font-size: 20dp; }
+
+#scoreboard { position: absolute; left: 0; right: 0; top: 60dp; display: flex; justify-content: center; }
+#scoreboard .board
+{
+    position: relative;
+    width: 640dp;
+    padding: 16dp 0 20dp 0;
+    background-color: #06060cd7;
+    border: 2dp #ff8c2878;
+    border-radius: 12dp;
+}
+#scoreboard .title { text-align: center; font-size: 30dp; line-height: 36dp; color: #ff8c28; margin-bottom: 12dp; }
+.score-row { position: relative; height: 30dp; margin: 0 14dp; }
+.score-row.local { background-color: #ff8c2837; border-radius: 6dp; }
+.score-row span { position: absolute; top: 4dp; }
+.score-row .rank { left: 16dp; }
+.score-row .swatch { left: 42dp; top: 7dp; width: 6dp; height: 15dp; }
+.score-row .name { left: 56dp; }
+.score-row .tag { font-size: 12dp; color: #aaaab9; margin-left: 10dp; top: 4dp; position: relative; }
+.score-row .frags { left: 386dp; width: 100dp; text-align: center; }
+.score-row .deaths { left: 486dp; width: 100dp; text-align: center; color: #aaaab9; }
+.score-head { height: 24dp; font-size: 14dp; color: #aaaab9; }
+.score-head span { top: 0; }

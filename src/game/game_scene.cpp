@@ -11,8 +11,6 @@
 
 #include "compiled/warning_off.h"
 #include <SDL3/SDL.h>
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -120,9 +118,19 @@ GameScene::GameScene()
         joinAddress = "127.0.0.1:" + net::DefaultHostAddress();
     }
     hostAddress = net::DefaultHostAddress();
-    std::snprintf(nameBuffer, sizeof(nameBuffer), "%s", options.name.c_str());
-    std::snprintf(joinBuffer, sizeof(joinBuffer), "%s", joinAddress.c_str());
-    std::snprintf(hostBuffer, sizeof(hostBuffer), "%s", hostAddress.c_str());
+    InitializeUi();
+    // The mouse wheel switches weapons.
+    globalWheel = &wheel;
+    window::Manager::GetInstance()->AddWindowMessageListener(
+        [](const window::WindowMessage message)
+        {
+            const auto *event = static_cast<const SDL_Event *>(message.backendData);
+            if (event != nullptr && event->type == SDL_EVENT_MOUSE_WHEEL && globalWheel != nullptr)
+            {
+                *globalWheel += event->wheel.y;
+            }
+        }
+    );
     StartDemo();
 }
 
@@ -130,6 +138,7 @@ GameScene::~GameScene()
 {
     session.Shutdown(world);
     globalWheel = nullptr;
+    ui.Shutdown();
 }
 
 void GameScene::LoadOptions()
@@ -171,68 +180,6 @@ void GameScene::SaveOptions() const
     bridge::SaveSetting("timeLimit", std::to_string(options.match.timeLimitSeconds));
 }
 
-void GameScene::EnsureImGui()
-{
-    if (imguiReady || ImGui::GetCurrentContext() == nullptr)
-    {
-        return;
-    }
-    imguiReady = true;
-    ImGuiIO &io = ImGui::GetIO();
-    io.IniFilename = nullptr;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    const std::string font_path = std::string(EVO_RESOURCE_DIR) + "/fonts/DejaVuSans-Bold.ttf";
-    font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 17.0f);
-    if (font != nullptr)
-    {
-        io.FontDefault = font;
-    }
-
-    ImGuiStyle &style = ImGui::GetStyle();
-    ImGui::StyleColorsDark(&style);
-    style.WindowRounding = 10.0f;
-    style.FrameRounding = 6.0f;
-    style.GrabRounding = 6.0f;
-    style.WindowPadding = ImVec2(22.0f, 18.0f);
-    style.FramePadding = ImVec2(10.0f, 7.0f);
-    style.ItemSpacing = ImVec2(10.0f, 9.0f);
-    style.WindowBorderSize = 1.0f;
-    ImVec4 *colors = style.Colors;
-    colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.06f, 0.09f, 0.92f);
-    colors[ImGuiCol_Border] = ImVec4(1.0f, 0.55f, 0.15f, 0.35f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.14f, 0.14f, 0.19f, 1.0f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.22f, 0.20f, 0.26f, 1.0f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.28f, 0.24f, 0.30f, 1.0f);
-    colors[ImGuiCol_Button] = ImVec4(0.85f, 0.42f, 0.10f, 0.85f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(1.0f, 0.55f, 0.18f, 1.0f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.75f, 0.35f, 0.05f, 1.0f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(1.0f, 0.55f, 0.15f, 1.0f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(1.0f, 0.7f, 0.3f, 1.0f);
-    colors[ImGuiCol_CheckMark] = ImVec4(1.0f, 0.6f, 0.2f, 1.0f);
-    colors[ImGuiCol_Header] = ImVec4(0.30f, 0.20f, 0.14f, 0.8f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.45f, 0.28f, 0.16f, 0.9f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.55f, 0.32f, 0.16f, 1.0f);
-    colors[ImGuiCol_Separator] = ImVec4(1.0f, 0.55f, 0.15f, 0.3f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.10f, 0.14f, 1.0f);
-
-    globalWheel = &wheel;
-    window::Manager::GetInstance()->AddWindowMessageListener(
-        [](const window::WindowMessage message)
-        {
-            if (ImGui::GetCurrentContext() == nullptr)
-            {
-                return;
-            }
-            const auto *event = static_cast<const SDL_Event *>(message.backendData);
-            ImGui_ImplSDL3_ProcessEvent(event);
-            if (event->type == SDL_EVENT_MOUSE_WHEEL && globalWheel != nullptr)
-            {
-                *globalWheel += event->wheel.y;
-            }
-        }
-    );
-}
-
 InputFrame GameScene::ReadInput(const Float delta_seconds)
 {
     InputFrame frame;
@@ -244,7 +191,7 @@ InputFrame GameScene::ReadInput(const Float delta_seconds)
             keys[i] = input::IsKeyDown(*keyboard.value(), KEY_MAP[i]);
         }
     }
-    const Bool typing = imguiReady && ImGui::GetIO().WantTextInput;
+    const Bool typing = IsTypingInUi();
     if (typing)
     {
         keys = {};
@@ -475,7 +422,6 @@ void GameScene::Update(const double elapsed_seconds)
     const Float delta_seconds =
         math::Clamp(static_cast<Float>(elapsed_seconds), 0.0005f, MAX_DELTA);
     realTime += delta_seconds;
-    EnsureImGui();
     const InputFrame input = ReadInput(delta_seconds);
 
     if (screen == Screen::MAIN_MENU && !autoStartDone && realTime > 1.0f)
@@ -1096,7 +1042,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
 
 void GameScene::UpdateCapture(const InputFrame &input)
 {
-    const Bool over_ui = imguiReady && ImGui::GetIO().WantCaptureMouse;
+    const Bool over_ui = IsPointerOverUi();
     if (screen != Screen::IN_MATCH)
     {
         input::SetMouseCaptured(false, over_ui);
@@ -1148,9 +1094,6 @@ void GameScene::Render()
         FVec3{0.0f, 1.0f, 0.0f} + cameraTilt
     );
     DrawWorld();
-    if (imguiReady)
-    {
-        DrawUi();
-    }
+    UpdateUi();
 }
 } // namespace evo
