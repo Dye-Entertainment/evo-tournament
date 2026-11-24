@@ -113,7 +113,7 @@
 
 <!-- ================= Pause menu ================= -->
 <div id="pause" class="layer" data-if="screen == 'match' &amp;&amp; pause">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <h2>{{ pauseTitle }}</h2>
         <div class="gap"></div>
         <div data-if="isHost">
@@ -121,7 +121,7 @@
             <div data-if="roomCodes">
                 <div class="center big">{{ roomCodeText }}</div>
                 <div class="row">
-                    <div class="link grow">{{ inviteLink }}</div>
+                    <div class="link grow"><div>{{ inviteLink }}</div></div>
                     <div class="button" data-event-click="action('copy')">Copy</div>
                 </div>
             </div>
@@ -161,18 +161,18 @@
         <div class="gap"></div>
         <div class="button" data-if="showResume" data-event-click="action('resume')">Resume</div>
         <div class="button" data-event-click="action('leave')">Leave match</div>
-    </div>
+    </div></div>
 </div>
 
 <!-- ================= Main menu ================= -->
 <div id="menu" class="layer" data-if="screen == 'menu'">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <h1>EVO TOURNAMENT</h1>
         <div class="subtitle">Arena deathmatch  -  built on the evogine engine</div>
         <div class="rule"></div>
 
         <div class="label">Your name</div>
-        <input type="text" class="text" maxlength="15" data-value="name"/>
+        <div class="field"><input type="text" class="text" maxlength="15" data-value="name"/></div>
         <div class="gap"></div>
 
         <div class="button huge" data-event-click="action('instant')">INSTANT ACTION</div>
@@ -188,11 +188,11 @@
         <div class="section">Online</div>
         <div class="row">
             <span data-if="!roomCodes">UDP port</span>
-            <input data-if="!roomCodes" type="text" class="text port" maxlength="6" data-value="hostPort"/>
+            <div class="field port" data-if="!roomCodes"><input type="text" class="text" maxlength="6" data-value="hostPort"/></div>
             <div class="button large grow first" data-event-click="action('host')">HOST ONLINE MATCH</div>
         </div>
         <div class="row">
-            <input type="text" class="text" maxlength="63" data-value="joinText" data-attr-placeholder="roomCodes ? 'Room code' : 'host:port'"/>
+            <div class="field"><input type="text" class="text" maxlength="63" data-value="joinText" data-attr-placeholder="roomCodes ? 'Room code' : 'host:port'"/></div>
             <div class="button large" data-event-click="action('join')">JOIN</div>
         </div>
         <div class="help">{{ onlineHelp }}</div>
@@ -239,26 +239,26 @@
             <div>- 1 2 3 / mouse wheel / Q - switch weapons</div>
             <div>- Tab - scoreboard,  Esc - menu</div>
         </div>
-    </div>
+    </div></div>
 </div>
 
 <!-- ================= Connecting ================= -->
 <div id="connecting" class="layer" data-if="screen == 'connecting'">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <h2>CONNECTING</h2>
         <div class="gap"></div>
         <div class="center">{{ connectStatus }}</div>
         <div class="gap"></div>
         <div class="button" data-event-click="action('cancel')">Cancel</div>
-    </div>
+    </div></div>
 </div>
 
 <!-- ================= Errors ================= -->
 <div id="error" data-if="error != ''">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <div class="error-text">{{ error }}</div>
         <div class="button" data-event-click="action('error-ok')">OK</div>
-    </div>
+    </div></div>
 </div>
 
 </body>

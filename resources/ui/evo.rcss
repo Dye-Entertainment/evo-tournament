@@ -28,16 +28,19 @@ body
     justify-content: center;
     align-items: center;
 }
+/* Clipping an element with rounded corners makes RmlUi draw a stencil clip mask, which is
+   expensive on the web (several extra full-screen passes and synchronous GL queries per frame).
+   So rounded elements never clip: scrolling happens in .scroll, and text in .field inputs,
+   both with square corners, which RmlUi clips with a plain scissor rectangle. */
 .panel
 {
     pointer-events: auto;
-    max-height: 96%;
-    overflow-y: auto;
-    padding: 18dp 22dp;
+    padding: 18dp 0 18dp 22dp;
     background-color: #0f0f17eb;
     border: 1dp #ff8c2659;
     border-radius: 10dp;
 }
+.scroll { max-height: 86vh; overflow-y: auto; padding-right: 22dp; }
 #menu .panel { width: 560dp; }
 #connecting .panel { width: 460dp; }
 #pause .panel { width: 480dp; }
@@ -82,25 +85,30 @@ h2 { text-align: center; font-size: 28dp; line-height: 36dp; color: #ff8c28; }
 .row .button { margin: 0 0 0 10dp; padding: 0 16dp; }
 .row .button.first { margin-left: 0; }
 
+.field
+{
+    height: 34dp;
+    padding: 0 10dp;
+    background-color: #242430;
+    border-radius: 6dp;
+    cursor: text;
+}
+.field:hover { background-color: #33333f; }
 input.text
 {
     display: block;
     box-sizing: border-box;
     width: 100%;
     height: 34dp;
-    padding: 7dp 10dp;
-    background-color: #242430;
-    border-radius: 6dp;
+    padding: 7dp 0;
     color: #ffffff;
     cursor: text;
     pointer-events: auto;
 }
-input.text:hover { background-color: #33333f; }
-input.text:focus { background-color: #3d3a47; }
 input.text:placeholder-shown { color: #8c8c99; }
 input.text selection { background-color: #ff8c2880; color: #ffffff; }
-.row input.text { flex: 1; }
-.row input.text.port { flex: 0 0 120dp; margin: 0 10dp; }
+.row .field { flex: 1; }
+.row .field.port { flex: 0 0 120dp; margin: 0 10dp; }
 
 /* Sliders: the track, the value and the label, like the old ImGui sliders. */
 .slider { display: flex; align-items: center; margin-bottom: 9dp; }
@@ -175,9 +183,8 @@ input.checkbox:checked { background-color: #ff9933; border: 6dp #242430; }
     background-color: #242430;
     border-radius: 6dp;
     font-size: 13dp;
-    overflow: hidden;
-    white-space: nowrap;
 }
+.link div { overflow: hidden; white-space: nowrap; }
 
 scrollbarvertical { width: 8dp; margin-left: 4dp; }
 scrollbarvertical slidertrack { background-color: #ffffff10; border-radius: 4dp; }
