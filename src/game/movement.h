@@ -26,6 +26,12 @@ struct MoveState
     UInt8 airJumps = 0;
     Float dodgeCooldown = 0.0f;
     Float padCooldown = 0.0f;
+    Bool wallRunning = false;
+    Float wallRunTime = 0.0f;
+    // Outward normal of the wall being run on (or last left); zero when none.
+    FVec3 wallNormal;
+    // The wall last run on can't be run on again until the player lands or touches another wall.
+    FVec3 lastWallNormal;
 };
 
 struct MoveInput
@@ -35,6 +41,7 @@ struct MoveInput
     Float yaw = 0.0f;
     Bool jump = false;
     DodgeDirection dodge = DodgeDirection::NONE;
+    Bool allowWallRun = false;
 };
 
 struct MoveEvents
@@ -43,6 +50,8 @@ struct MoveEvents
     Bool doubleJumped = false;
     Bool dodged = false;
     Bool launched = false;
+    Bool wallRunStarted = false;
+    Bool wallJumped = false;
     Float landingSpeed = 0.0f;
 };
 

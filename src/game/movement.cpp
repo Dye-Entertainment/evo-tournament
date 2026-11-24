@@ -20,6 +20,19 @@ constexpr Float SNAP_DISTANCE = 0.6f;
 constexpr Float SKIN = 0.001f;
 constexpr Float MAX_SUBSTEP = 0.25f;
 
+// Wall running: airborne, holding forward and moving along a wall fast enough.
+constexpr Float WALL_PROBE = 0.2f;
+constexpr Float WALL_RUN_MIN_SPEED = 5.0f;
+constexpr Float WALL_RUN_KEEP_SPEED = 3.0f;
+constexpr Float WALL_RUN_SPEED = 10.5f;
+constexpr Float WALL_RUN_MAX_TIME = 1.4f;
+constexpr Float WALL_RUN_START_LIFT = 2.0f;
+constexpr Float WALL_RUN_MAX_RISE = 4.0f;
+constexpr Float WALL_RUN_MAX_SINK = 3.0f;
+constexpr Float WALL_RUN_STICK = 1.0f;
+constexpr Float WALL_JUMP_PUSH = 7.5f;
+constexpr Float WALL_JUMP_UP = 7.8f;
+
 Float &AxisValue(FVec3 &v, const int axis)
 {
     return axis == 0 ? v.x : (axis == 1 ? v.y : v.z);
@@ -138,6 +151,82 @@ FVec3 DodgeVector(const DodgeDirection direction, const Float yaw)
     }
 }
 
+FVec3 WallTangent(const FVec3 &normal, const FVec3 &velocity)
+{
+    const FVec3 tangent{-normal.z, 0.0f, normal.x};
+    return math::GetDotProduct(tangent, velocity) >= 0.0f ? tangent : -tangent;
+}
+
+// Looks for a wall beside the player's torso. Walls are axis-aligned, so there are only four
+// candidate normals; with two (a corner) the one the player moves along fastest wins.
+Bool FindWall(const FVec3 &position, const FVec3 &velocity, const Arena &arena, FVec3 &normal)
+{
+    const FVec3 directions[4] = {{1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
+                                 {0.0f, 0.0f, -1.0f}};
+    Float best_speed = -1.0f;
+    for (const FVec3 &direction : directions)
+    {
+        primitive::AxisAlignedBox probe = PlayerBounds(position + direction * WALL_PROBE);
+        probe.min.y = position.y + 0.8f;
+        probe.max.y = position.y + 1.2f;
+        if (!arena.IsBlocked(probe))
+        {
+            continue;
+        }
+        const Float along_speed = std::fabs(velocity.x * direction.z - velocity.z * direction.x);
+        if (along_speed > best_speed)
+        {
+            best_speed = along_speed;
+            normal = -direction;
+        }
+    }
+    return best_speed >= 0.0f;
+}
+
+void EndWallRun(MoveState &state)
+{
+    if (state.wallRunning)
+    {
+        state.lastWallNormal = state.wallNormal;
+    }
+    state.wallRunning = false;
+}
+
+void UpdateWallRun(MoveState &state, const MoveInput &input, const FVec3 &wish_direction,
+                   const Float delta_seconds, const Arena &arena, MoveEvents &events)
+{
+    FVec3 normal{0.0f, 0.0f, 0.0f};
+    const Bool touching =
+        input.allowWallRun && FindWall(state.position, state.velocity, arena, normal);
+    const Bool pushing_off = math::GetDotProduct(wish_direction, normal) > 0.5f;
+    const Float along_speed =
+        touching ? math::GetDotProduct(WallTangent(normal, state.velocity), state.velocity) : 0.0f;
+
+    if (state.wallRunning)
+    {
+        state.wallRunTime += delta_seconds;
+        const Bool same_wall = touching && math::GetDotProduct(normal, state.wallNormal) > 0.9f;
+        if (!same_wall || input.forward <= 0.0f || pushing_off ||
+            along_speed < WALL_RUN_KEEP_SPEED || state.wallRunTime >= WALL_RUN_MAX_TIME)
+        {
+            EndWallRun(state);
+        }
+        return;
+    }
+
+    // Waiting until a jump's rise slows keeps its full height; the run then carries it on.
+    if (!touching || input.forward <= 0.0f || pushing_off || along_speed < WALL_RUN_MIN_SPEED ||
+        state.velocity.y > WALL_RUN_MAX_RISE || math::GetDotProduct(normal, state.lastWallNormal) > 0.9f)
+    {
+        return;
+    }
+    state.wallRunning = true;
+    state.wallRunTime = 0.0f;
+    state.wallNormal = normal;
+    state.velocity.y = std::max(state.velocity.y, WALL_RUN_START_LIFT);
+    events.wallRunStarted = true;
+}
+
 Bool TrySnapToGround(MoveState &state, const Arena &arena)
 {
     const primitive::AxisAlignedBox bounds = PlayerBounds(state.position);
@@ -208,6 +297,8 @@ void StepMovement(
 
     if (state.onGround)
     {
+        state.wallRunning = false;
+        state.lastWallNormal = FVec3{0.0f, 0.0f, 0.0f};
         ApplyFriction(state.velocity, delta_seconds);
         if (input.dodge != DodgeDirection::NONE && state.dodgeCooldown <= 0.0f)
         {
@@ -236,16 +327,50 @@ void StepMovement(
     }
     else
     {
-        if (input.jump && state.airJumps > 0 && state.velocity.y < 6.0f)
+        UpdateWallRun(state, input, wish_direction, delta_seconds, arena, events);
+        if (state.wallRunning && input.jump)
+        {
+            const FVec3 normal = state.wallNormal;
+            state.velocity.x += normal.x * WALL_JUMP_PUSH;
+            state.velocity.z += normal.z * WALL_JUMP_PUSH;
+            state.velocity.y = WALL_JUMP_UP;
+            state.airJumps = 1;
+            EndWallRun(state);
+            events.wallJumped = true;
+        }
+        else if (input.jump && state.airJumps > 0 && state.velocity.y < 6.0f)
         {
             state.velocity.y = DOUBLE_JUMP_SPEED;
             state.airJumps = 0;
             events.doubleJumped = true;
         }
-        Accelerate(state.velocity, wish_direction, wish_speed, AIR_ACCELERATION, delta_seconds);
+
+        if (state.wallRunning)
+        {
+            const FVec3 normal = state.wallNormal;
+            const Float outward = math::GetDotProduct(state.velocity, normal);
+            state.velocity.x -= normal.x * (outward + WALL_RUN_STICK);
+            state.velocity.z -= normal.z * (outward + WALL_RUN_STICK);
+            Accelerate(state.velocity, WallTangent(normal, state.velocity), WALL_RUN_SPEED,
+                       GROUND_ACCELERATION, delta_seconds);
+        }
+        else
+        {
+            Accelerate(state.velocity, wish_direction, wish_speed, AIR_ACCELERATION, delta_seconds);
+        }
     }
 
-    state.velocity.y -= GRAVITY * delta_seconds;
+    if (state.wallRunning)
+    {
+        // Gravity barely pulls at first, then catches up as the run nears its end.
+        const Float progress = state.wallRunTime / WALL_RUN_MAX_TIME;
+        state.velocity.y -= GRAVITY * (0.15f + 0.85f * progress * progress) * delta_seconds;
+        state.velocity.y = std::max(state.velocity.y, -WALL_RUN_MAX_SINK);
+    }
+    else
+    {
+        state.velocity.y -= GRAVITY * delta_seconds;
+    }
     const Float falling_speed = -state.velocity.y;
 
     const FVec3 motion = state.velocity * delta_seconds;
@@ -283,6 +408,7 @@ void StepMovement(
                 state.onGround = false;
                 state.airJumps = 1;
                 state.padCooldown = 0.6f;
+                EndWallRun(state);
                 events.launched = true;
                 break;
             }

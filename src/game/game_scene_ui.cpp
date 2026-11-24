@@ -293,6 +293,7 @@ void GameScene::DrawMainMenu()
         ImGui::BulletText("WASD / arrows - move,  mouse - aim,  left click - fire");
         ImGui::BulletText("Space - jump, press again in the air to double jump");
         ImGui::BulletText("Double-tap a direction or press Shift - dodge");
+        ImGui::BulletText("Jump along a wall while holding W - wall run, Space to kick off");
         ImGui::BulletText("1 2 3 / mouse wheel / Q - switch weapons");
         ImGui::BulletText("Tab - scoreboard,  Esc - menu");
     }

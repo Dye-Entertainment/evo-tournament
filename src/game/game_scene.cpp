@@ -26,6 +26,7 @@ constexpr Float MAX_DELTA = 0.05f;
 constexpr Float LOOK_SCALE = 0.0022f;
 constexpr Float DOUBLE_TAP_WINDOW = 0.25f;
 constexpr Float MAX_PITCH = 1.5f;
+constexpr Float WALL_RUN_CAMERA_TILT = 0.14f;
 constexpr int DEMO_BOTS = 6;
 
 enum KeySlot
@@ -665,6 +666,7 @@ void GameScene::UpdateLocalPlayerHost(const Float delta_seconds, const InputFram
             move.right = input.right;
             move.jump = input.jump;
             move.dodge = input.dodge;
+            move.allowWallRun = true;
             if (input.fireHeld && fireArmed)
             {
                 fire.fire = true;
@@ -720,6 +722,7 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
         move.right = input.right;
         move.jump = input.jump;
         move.dodge = input.dodge;
+        move.allowWallRun = true;
     }
     MoveEvents events;
     StepMovement(player.move, move, delta_seconds, world.arena, events);
@@ -760,6 +763,14 @@ void GameScene::PlayLocalMoveSounds()
     if (events.dodged)
     {
         sfx.Play(Sound::DODGE, 0.7f);
+    }
+    if (events.wallRunStarted)
+    {
+        sfx.Play(Sound::DODGE, 0.35f);
+    }
+    if (events.wallJumped)
+    {
+        sfx.Play(Sound::JUMP, 0.65f);
     }
     if (events.launched)
     {
@@ -1045,6 +1056,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
         const Float angle = realTime * 0.08f;
         cameraEye = FVec3{std::sin(angle) * 38.0f, 17.0f, std::cos(angle) * 38.0f};
         math::GetYawPitchFromDirection(FVec3{0.0f, 2.0f, 0.0f} - cameraEye, cameraYaw, cameraPitch);
+        cameraTilt = FVec3{0.0f, 0.0f, 0.0f};
         return;
     }
     if (player->alive)
@@ -1058,6 +1070,10 @@ void GameScene::UpdateCamera(const Float delta_seconds)
                                                       math::Clamp(speed / 9.5f, 0.0f, 1.0f)
                                                 : 0.0f;
         cameraEye = EyePosition(player->move) + FVec3{0.0f, bob - landDip, 0.0f};
+        // Lean the view away from the wall while wall running.
+        const FVec3 tilt_target =
+            player->move.wallRunning ? player->move.wallNormal * WALL_RUN_CAMERA_TILT : FVec3{0.0f, 0.0f, 0.0f};
+        cameraTilt = cameraTilt + (tilt_target - cameraTilt) * std::min(1.0f, delta_seconds * 8.0f);
         cameraYaw = player->yaw;
         cameraPitch = player->pitch;
     }
@@ -1067,6 +1083,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
         cameraEye = deathPosition + FVec3{0.0f, 1.0f + rise * 1.4f, 0.0f};
         cameraYaw = math::GetWrappedAngle(cameraYaw + delta_seconds * 0.25f);
         cameraPitch = -0.55f;
+        cameraTilt = FVec3{0.0f, 0.0f, 0.0f};
     }
     if (shake > 0.0f)
     {
@@ -1126,7 +1143,10 @@ void GameScene::Render()
     renderer.BeginFrame();
     const IVec2 size = window::Manager::GetInstance()->GetWindowSize(0);
     const Float aspect = size.y > 0 ? static_cast<Float>(size.x) / static_cast<Float>(size.y) : 16.0f / 9.0f;
-    renderer.SetCamera(cameraEye, cameraYaw, cameraPitch, HorizontalToVerticalFov(options.fieldOfView, aspect), aspect);
+    renderer.SetCamera(
+        cameraEye, cameraYaw, cameraPitch, HorizontalToVerticalFov(options.fieldOfView, aspect), aspect,
+        FVec3{0.0f, 1.0f, 0.0f} + cameraTilt
+    );
     DrawWorld();
     if (imguiReady)
     {

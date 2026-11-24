@@ -177,6 +177,7 @@ class GameScene final : public core::Scene
     Float respawnRequestTimer = 0.0f;
     WeaponId previousWeapon = WeaponId::RIFLE;
     FVec3 cameraEye;
+    FVec3 cameraTilt;
     Float cameraYaw = 0.0f;
     Float cameraPitch = 0.0f;
     FVec3 deathPosition;

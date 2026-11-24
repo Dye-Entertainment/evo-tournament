@@ -2,7 +2,7 @@
 
 A fast arena deathmatch shooter built on the [evogine](https://github.com/Dye-Entertainment/evogine)
 engine (included as a git submodule). It's an original game in the classic arena-shooter style:
-double jumps, dodges, jump pads, power-up control and bots that hunt you through a
+double jumps, dodges, wall runs, jump pads, power-up control and bots that hunt you through a
 multi-level arena. It runs natively on Linux and in the browser.
 
 ## Play
@@ -19,6 +19,7 @@ multi-level arena. It runs natively on Linux and in the browser.
 | Aim / fire | Mouse / left click |
 | Jump, double jump | Space (press again in the air) |
 | Dodge | Double-tap a direction, or Shift |
+| Wall run | Jump alongside a wall while holding forward; Space kicks off it |
 | Weapons | 1 2 3, mouse wheel, Q for the last weapon |
 | Scoreboard | Tab |
 | Menu | Esc (in the browser, Esc releases the mouse and opens the menu) |

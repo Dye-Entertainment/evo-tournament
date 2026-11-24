@@ -32,7 +32,10 @@ class SceneRenderer final
     ~SceneRenderer();
     Bool Initialize(const Arena &arena);
     void BeginFrame();
-    void SetCamera(const FVec3 &eye, Float yaw, Float pitch, Float fov_degrees, Float aspect);
+    void SetCamera(
+        const FVec3 &eye, Float yaw, Float pitch, Float fov_degrees, Float aspect,
+        const FVec3 &up = FVec3{0.0f, 1.0f, 0.0f}
+    );
     void DrawLevel();
     void DrawSky();
     void DrawShape(MeshShape shape, const FVec3 &center, const FVec3 &size, const FVec3 &color,

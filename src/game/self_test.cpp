@@ -49,6 +49,99 @@ int ValidateWaypoints(const Arena &arena)
     }
     return failures;
 }
+
+// A floor with one long wall along +x: jump beside it, run along it, then kick off.
+int ValidateWallRun()
+{
+    Arena arena;
+    arena.boxes.push_back(ArenaBox{{FVec3{-50.0f, -1.0f, -50.0f}, FVec3{50.0f, 0.0f, 50.0f}}, FVec3{1.0f}});
+    arena.boxes.push_back(ArenaBox{{FVec3{-50.0f, 0.0f, 2.0f}, FVec3{50.0f, 8.0f, 3.0f}}, FVec3{1.0f}});
+
+    constexpr Float STEP = 1.0f / 60.0f;
+    MoveState state;
+    state.position = FVec3{-30.0f, 0.001f, 2.0f - PLAYER_HALF_WIDTH - 0.01f};
+    state.onGround = true;
+    MoveInput input;
+    input.forward = 1.0f;
+    input.yaw = 3.14159265f * 0.5f; // facing +x, wall on the left
+    input.allowWallRun = true;
+
+    int failures = 0;
+    Bool started = false;
+    Float run_seconds = 0.0f;
+    Float peak_height = 0.0f;
+    for (int frame = 0; frame < 240 && (!state.onGround || frame < 30); ++frame)
+    {
+        input.jump = frame == 25;
+        MoveEvents events;
+        StepMovement(state, input, STEP, arena, events);
+        started = started || events.wallRunStarted;
+        run_seconds += state.wallRunning ? STEP : 0.0f;
+        peak_height = std::max(peak_height, state.position.y);
+    }
+    if (!started || run_seconds < 0.8f)
+    {
+        std::printf("wall run did not start or ended early (%.2fs)\n", run_seconds);
+        ++failures;
+    }
+    if (run_seconds > 1.5f)
+    {
+        std::printf("wall run lasted too long (%.2fs)\n", run_seconds);
+        ++failures;
+    }
+    std::printf("wall run %.2f s, peak height %.2f m\n", run_seconds, peak_height);
+    if (peak_height < 2.0f)
+    {
+        std::printf("wall run peaked at only %.2f\n", peak_height);
+        ++failures;
+    }
+
+    // Kick off: the jump has to push away from the wall and give the double jump back.
+    state = MoveState{};
+    state.position = FVec3{-30.0f, 0.001f, 2.0f - PLAYER_HALF_WIDTH - 0.01f};
+    state.onGround = true;
+    Bool kicked = false;
+    for (int frame = 0; frame < 120 && !kicked; ++frame)
+    {
+        input.jump = frame == 25 || (state.wallRunning && state.wallRunTime > 0.3f);
+        MoveEvents events;
+        StepMovement(state, input, STEP, arena, events);
+        if (events.wallJumped)
+        {
+            kicked = true;
+            if (state.velocity.z > -5.0f || state.airJumps != 1 || state.velocity.y < 7.0f)
+            {
+                std::printf("wall jump had the wrong velocity (%.1f %.1f %.1f)\n", state.velocity.x,
+                            state.velocity.y, state.velocity.z);
+                ++failures;
+            }
+        }
+    }
+    if (!kicked)
+    {
+        std::printf("wall jump never happened\n");
+        ++failures;
+    }
+
+    // Without permission (bots) nothing happens.
+    state = MoveState{};
+    state.position = FVec3{-30.0f, 0.001f, 2.0f - PLAYER_HALF_WIDTH - 0.01f};
+    state.onGround = true;
+    input.allowWallRun = false;
+    for (int frame = 0; frame < 90; ++frame)
+    {
+        input.jump = frame == 25;
+        MoveEvents events;
+        StepMovement(state, input, STEP, arena, events);
+        if (state.wallRunning)
+        {
+            std::printf("wall run started without being allowed\n");
+            ++failures;
+            break;
+        }
+    }
+    return failures;
+}
 } // namespace
 
 int ValidateSounds()
@@ -85,6 +178,7 @@ int RunSelfTest()
 
     int failures = ValidateWaypoints(world.arena);
     failures += ValidateSounds();
+    failures += ValidateWallRun();
 
     for (int i = 0; i < settings.botCount; ++i)
     {

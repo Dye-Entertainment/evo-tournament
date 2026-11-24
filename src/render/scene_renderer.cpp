@@ -200,13 +200,14 @@ resource::Material *SceneRenderer::NextMaterial(const FVec3 &color, const Float 
 }
 
 void SceneRenderer::SetCamera(
-    const FVec3 &eye, const Float yaw, const Float pitch, const Float fov_degrees, const Float aspect
+    const FVec3 &eye, const Float yaw, const Float pitch, const Float fov_degrees, const Float aspect,
+    const FVec3 &up
 )
 {
     cameraPosition = eye;
     auto &camera = graphics::Renderer::GetInstance()->GetCamera();
     const FVec3 forward = math::GetDirectionFromYawPitch(yaw, pitch);
-    camera.view = math::GetLookAtMatrix(eye, eye + forward, FVec3{0.0f, 1.0f, 0.0f});
+    camera.view = math::GetLookAtMatrix(eye, eye + forward, up);
     camera.projection = math::GetPerspectiveProjectionMatrix(fov_degrees, aspect, NEAR_PLANE, FAR_PLANE);
     // The engine starts from identity and leaves m[3][3] = 1, which makes clip w = z + 1.
     camera.projection[3][3] = 0.0f;
