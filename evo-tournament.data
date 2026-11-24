@@ -7417,16 +7417,19 @@ body
     justify-content: center;
     align-items: center;
 }
+/* Clipping an element with rounded corners makes RmlUi draw a stencil clip mask, which is
+   expensive on the web (several extra full-screen passes and synchronous GL queries per frame).
+   So rounded elements never clip: scrolling happens in .scroll, and text in .field inputs,
+   both with square corners, which RmlUi clips with a plain scissor rectangle. */
 .panel
 {
     pointer-events: auto;
-    max-height: 96%;
-    overflow-y: auto;
-    padding: 18dp 22dp;
+    padding: 18dp 0 18dp 22dp;
     background-color: #0f0f17eb;
     border: 1dp #ff8c2659;
     border-radius: 10dp;
 }
+.scroll { max-height: 86vh; overflow-y: auto; padding-right: 22dp; }
 #menu .panel { width: 560dp; }
 #connecting .panel { width: 460dp; }
 #pause .panel { width: 480dp; }
@@ -7471,25 +7474,30 @@ h2 { text-align: center; font-size: 28dp; line-height: 36dp; color: #ff8c28; }
 .row .button { margin: 0 0 0 10dp; padding: 0 16dp; }
 .row .button.first { margin-left: 0; }
 
+.field
+{
+    height: 34dp;
+    padding: 0 10dp;
+    background-color: #242430;
+    border-radius: 6dp;
+    cursor: text;
+}
+.field:hover { background-color: #33333f; }
 input.text
 {
     display: block;
     box-sizing: border-box;
     width: 100%;
     height: 34dp;
-    padding: 7dp 10dp;
-    background-color: #242430;
-    border-radius: 6dp;
+    padding: 7dp 0;
     color: #ffffff;
     cursor: text;
     pointer-events: auto;
 }
-input.text:hover { background-color: #33333f; }
-input.text:focus { background-color: #3d3a47; }
 input.text:placeholder-shown { color: #8c8c99; }
 input.text selection { background-color: #ff8c2880; color: #ffffff; }
-.row input.text { flex: 1; }
-.row input.text.port { flex: 0 0 120dp; margin: 0 10dp; }
+.row .field { flex: 1; }
+.row .field.port { flex: 0 0 120dp; margin: 0 10dp; }
 
 /* Sliders: the track, the value and the label, like the old ImGui sliders. */
 .slider { display: flex; align-items: center; margin-bottom: 9dp; }
@@ -7564,9 +7572,8 @@ input.checkbox:checked { background-color: #ff9933; border: 6dp #242430; }
     background-color: #242430;
     border-radius: 6dp;
     font-size: 13dp;
-    overflow: hidden;
-    white-space: nowrap;
 }
+.link div { overflow: hidden; white-space: nowrap; }
 
 scrollbarvertical { width: 8dp; margin-left: 4dp; }
 scrollbarvertical slidertrack { background-color: #ffffff10; border-radius: 4dp; }
@@ -7790,7 +7797,7 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
 
 <!-- ================= Pause menu ================= -->
 <div id="pause" class="layer" data-if="screen == 'match' &amp;&amp; pause">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <h2>{{ pauseTitle }}</h2>
         <div class="gap"></div>
         <div data-if="isHost">
@@ -7798,7 +7805,7 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
             <div data-if="roomCodes">
                 <div class="center big">{{ roomCodeText }}</div>
                 <div class="row">
-                    <div class="link grow">{{ inviteLink }}</div>
+                    <div class="link grow"><div>{{ inviteLink }}</div></div>
                     <div class="button" data-event-click="action('copy')">Copy</div>
                 </div>
             </div>
@@ -7838,18 +7845,18 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
         <div class="gap"></div>
         <div class="button" data-if="showResume" data-event-click="action('resume')">Resume</div>
         <div class="button" data-event-click="action('leave')">Leave match</div>
-    </div>
+    </div></div>
 </div>
 
 <!-- ================= Main menu ================= -->
 <div id="menu" class="layer" data-if="screen == 'menu'">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <h1>EVO TOURNAMENT</h1>
         <div class="subtitle">Arena deathmatch  -  built on the evogine engine</div>
         <div class="rule"></div>
 
         <div class="label">Your name</div>
-        <input type="text" class="text" maxlength="15" data-value="name"/>
+        <div class="field"><input type="text" class="text" maxlength="15" data-value="name"/></div>
         <div class="gap"></div>
 
         <div class="button huge" data-event-click="action('instant')">INSTANT ACTION</div>
@@ -7865,11 +7872,11 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
         <div class="section">Online</div>
         <div class="row">
             <span data-if="!roomCodes">UDP port</span>
-            <input data-if="!roomCodes" type="text" class="text port" maxlength="6" data-value="hostPort"/>
+            <div class="field port" data-if="!roomCodes"><input type="text" class="text" maxlength="6" data-value="hostPort"/></div>
             <div class="button large grow first" data-event-click="action('host')">HOST ONLINE MATCH</div>
         </div>
         <div class="row">
-            <input type="text" class="text" maxlength="63" data-value="joinText" data-attr-placeholder="roomCodes ? 'Room code' : 'host:port'"/>
+            <div class="field"><input type="text" class="text" maxlength="63" data-value="joinText" data-attr-placeholder="roomCodes ? 'Room code' : 'host:port'"/></div>
             <div class="button large" data-event-click="action('join')">JOIN</div>
         </div>
         <div class="help">{{ onlineHelp }}</div>
@@ -7916,26 +7923,26 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
             <div>- 1 2 3 / mouse wheel / Q - switch weapons</div>
             <div>- Tab - scoreboard,  Esc - menu</div>
         </div>
-    </div>
+    </div></div>
 </div>
 
 <!-- ================= Connecting ================= -->
 <div id="connecting" class="layer" data-if="screen == 'connecting'">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <h2>CONNECTING</h2>
         <div class="gap"></div>
         <div class="center">{{ connectStatus }}</div>
         <div class="gap"></div>
         <div class="button" data-event-click="action('cancel')">Cancel</div>
-    </div>
+    </div></div>
 </div>
 
 <!-- ================= Errors ================= -->
 <div id="error" data-if="error != ''">
-    <div class="panel">
+    <div class="panel"><div class="scroll">
         <div class="error-text">{{ error }}</div>
         <div class="button" data-event-click="action('error-ok')">OK</div>
-    </div>
+    </div></div>
 </div>
 
 </body>
