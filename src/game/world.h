@@ -168,6 +168,7 @@ struct MatchSettings
     Float timeLimitSeconds = 480.0f;
     int botCount = 4;
     Float botSkill = 0.3f;
+    ArenaId arena = ArenaId::BASTION;
 };
 
 struct MatchState

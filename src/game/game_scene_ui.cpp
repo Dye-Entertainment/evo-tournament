@@ -1,4 +1,8 @@
 #include "game/game_scene.h"
+
+#include "compiled/warning_off.h"
+#include <cstdlib>
+#include "compiled/warning_on.h"
 #include "platform_bridge.h"
 
 #include "os/browser.h"
@@ -97,6 +101,10 @@ void GameScene::InitializeUi()
     ui.OnAction("cancel", [this] { StartDemo(); });
     ui.OnAction("leave", [this] { StartDemo(); });
     ui.OnAction("error-ok", [this] { errorMessage.clear(); });
+    for (int i = 0; i < ARENA_COUNT; ++i)
+    {
+        ui.OnAction("arena" + std::to_string(i), [this, i] { SelectArena(static_cast<ArenaId>(i)); });
+    }
     ui.OnAction(
         "resume",
         [this]
@@ -124,6 +132,7 @@ void GameScene::InitializeUi()
     s.fov = options.fieldOfView;
     s.volume = options.volume;
     s.invertY = options.invertY;
+    s.gore = options.gore;
     s.hostPort = hostAddress;
     s.joinText = joinAddress;
     s.roomCodes = net::UsesRoomCodes();
@@ -196,6 +205,12 @@ Bool GameScene::SyncUiForms()
         options.invertY = s.invertY;
         changed = true;
     }
+    if (s.gore != options.gore)
+    {
+        options.gore = s.gore;
+        effects.SetGore(options.gore);
+        changed = true;
+    }
     if (s.volume != options.volume)
     {
         options.volume = math::Clamp(s.volume, 0.0f, 1.0f);
@@ -218,7 +233,13 @@ void GameScene::UpdateUi()
     const Bool forms_dirty = SyncUiForms();
     UiState &s = ui.State();
     s.screen = screen == Screen::MAIN_MENU ? "menu" : screen == Screen::CONNECTING ? "connecting" : "match";
+    if (screen == Screen::MAIN_MENU && std::getenv("EVO_PREVIEW") != nullptr)
+    {
+        s.screen = "preview";
+    }
     s.skillName = SkillName(options.match.botSkill);
+    s.arena = static_cast<Int32>(options.match.arena);
+    s.arenaDescription = ArenaDescription(options.match.arena);
     s.error = errorMessage;
     if (screen == Screen::CONNECTING)
     {

@@ -111,6 +111,7 @@ Bool EvoUi::Initialize(const std::string &ui_dir)
     form("fov", &s.fov);
     form("volume", &s.volume);
     form("invertY", &s.invertY);
+    form("gore", &s.gore);
     form("hostPort", &s.hostPort);
     form("joinText", &s.joinText);
     form("showMatch", &s.showMatch);
@@ -120,6 +121,8 @@ Bool EvoUi::Initialize(const std::string &ui_dir)
 
     display("screen", &s.screen);
     display("skillName", &s.skillName);
+    display("arena", &s.arena);
+    display("arenaDescription", &s.arenaDescription);
     display("roomCodes", &s.roomCodes);
     display("onlineHelp", &s.onlineHelp);
     display("connectStatus", &s.connectStatus);

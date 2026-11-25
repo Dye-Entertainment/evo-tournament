@@ -18,7 +18,7 @@ using ::net::TransportEvent;
 using ::net::TransportEventType;
 using ::net::UsesRoomCodes;
 
-constexpr UInt8 PROTOCOL_VERSION = 1;
+constexpr UInt8 PROTOCOL_VERSION = 2;
 
 [[nodiscard]]
 const ::net::TransportSettings &GetTransportSettings();

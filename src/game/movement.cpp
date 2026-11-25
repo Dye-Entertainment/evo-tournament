@@ -84,7 +84,7 @@ void MoveAxis(MoveState &state, const int axis, const Float amount, const Bool c
     primitive::AxisAlignedBox bounds = PlayerBounds(state.position);
     for (const ArenaBox &box : arena.boxes)
     {
-        if (!primitive::Overlaps(bounds, box.bounds))
+        if (!box.solid || !primitive::Overlaps(bounds, box.bounds))
         {
             continue;
         }
@@ -233,7 +233,7 @@ Bool TrySnapToGround(MoveState &state, const Arena &arena)
     Float best_top = -1e9f;
     for (const ArenaBox &box : arena.boxes)
     {
-        if (box.bounds.min.x >= bounds.max.x || box.bounds.max.x <= bounds.min.x ||
+        if (!box.solid || box.bounds.min.x >= bounds.max.x || box.bounds.max.x <= bounds.min.x ||
             box.bounds.min.z >= bounds.max.z || box.bounds.max.z <= bounds.min.z)
         {
             continue;

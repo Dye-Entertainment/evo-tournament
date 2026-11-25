@@ -166,7 +166,9 @@ int ValidateSounds()
     return 0;
 }
 
-int RunSelfTest()
+namespace
+{
+int SimulateArena(const ArenaId arena_id)
 {
     World world;
     MatchSettings settings;
@@ -174,12 +176,14 @@ int RunSelfTest()
     settings.fragLimit = 1000;
     settings.timeLimitSeconds = 100000.0f;
     settings.botSkill = 0.6f;
+    settings.arena = arena_id;
     world.Initialize(settings);
+    std::printf("== %s: %zu boxes, %zu waypoints, %zu lights\n", world.arena.name.c_str(),
+                world.arena.boxes.size(), world.arena.waypoints.size(), world.arena.lights.size());
 
     int failures = ValidateWaypoints(world.arena);
-    failures += ValidateSounds();
-    failures += ValidateWallRun();
-
+    // Height that counts as "up on the high ground" for this level.
+    const Float high_ground = arena_id == ArenaId::FOUNDRY ? 4.5f : 5.0f;
     for (int i = 0; i < settings.botCount; ++i)
     {
         world.AddPlayer(BotName(i), PlayerControl::BOT, -1);
@@ -236,8 +240,8 @@ int RunSelfTest()
                 continue;
             }
             ++samples;
-            ring_samples += p.y > 5.0f ? 1 : 0;
-            altar_samples += (p.y > 2.5f && p.y < 3.5f && std::fabs(p.x) < 6 && std::fabs(p.z) < 6) ? 1 : 0;
+            ring_samples += p.y > high_ground ? 1 : 0;
+            altar_samples += (p.y > 2.0f && std::fabs(p.x) < 6 && std::fabs(p.z) < 6) ? 1 : 0;
             if (math::GetLength(p - last_positions[i]) < 0.5f)
             {
                 ++idle_seconds[i];
@@ -253,7 +257,7 @@ int RunSelfTest()
 
     std::printf("simulated %d s with %d bots\n", SECONDS, settings.botCount);
     std::printf("shots %d explosions %d kills %d pickups %d\n", shots, explosions, kills, pickups);
-    std::printf("time on ring %.1f%% on altar %.1f%% longest idle %d s\n",
+    std::printf("time high %.1f%% in the middle %.1f%% longest idle %d s\n",
                 100.0f * static_cast<Float>(ring_samples) / static_cast<Float>(std::max(samples, 1)),
                 100.0f * static_cast<Float>(altar_samples) / static_cast<Float>(std::max(samples, 1)),
                 max_idle);
@@ -276,13 +280,27 @@ int RunSelfTest()
     }
     if (ring_samples == 0)
     {
-        std::printf("bots never reached the upper ring\n");
+        std::printf("bots never reached the high ground\n");
         ++failures;
     }
     if (max_idle > 8)
     {
         std::printf("a bot stayed in place for %d seconds\n", max_idle);
         ++failures;
+    }
+    return failures;
+}
+} // namespace
+
+int RunSelfTest()
+{
+    int failures = ValidateSounds();
+    failures += ValidateWallRun();
+    for (int arena = 0; arena < ARENA_COUNT; ++arena)
+    {
+        const int arena_failures = SimulateArena(static_cast<ArenaId>(arena));
+        std::printf("%s: %s\n", ArenaName(static_cast<ArenaId>(arena)), arena_failures == 0 ? "ok" : "FAILED");
+        failures += arena_failures;
     }
     std::printf(failures == 0 ? "SELFTEST PASS\n" : "SELFTEST FAIL (%d)\n", failures);
     return failures == 0 ? 0 : 1;

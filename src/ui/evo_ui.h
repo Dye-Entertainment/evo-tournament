@@ -80,6 +80,7 @@ struct UiState
     Float fov = 100.0f;
     Float volume = 0.8f;
     Bool invertY = false;
+    Bool gore = true;
     std::string hostPort;
     std::string joinText;
     Bool showMatch = false;
@@ -88,6 +89,8 @@ struct UiState
     Bool showPauseOptions = false;
 
     // Main menu
+    Int32 arena = 0;
+    std::string arenaDescription;
     std::string skillName;
     Bool roomCodes = false;
     std::string onlineHelp;

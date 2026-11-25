@@ -109,7 +109,8 @@ GameScene::GameScene()
 {
     LoadOptions();
     world.Initialize(options.match);
-    rendererReady = renderer.Initialize(world.arena);
+    rendererReady = renderer.Initialize();
+    effects.SetGore(options.gore);
     sfx.Initialize();
     sfx.SetMasterVolume(options.volume);
     joinAddress = bridge::JoinCodeFromUrl();
@@ -153,6 +154,10 @@ void GameScene::LoadOptions()
     options.fieldOfView = std::strtof(bridge::LoadSetting("fov", "100").c_str(), nullptr);
     options.volume = std::strtof(bridge::LoadSetting("volume", "0.8").c_str(), nullptr);
     options.invertY = bridge::LoadSetting("invertY", "0") == "1";
+    options.gore = bridge::LoadSetting("gore", "1") == "1";
+    options.match.arena = static_cast<ArenaId>(
+        std::clamp(std::atoi(bridge::LoadSetting("arena", "0").c_str()), 0, ARENA_COUNT - 1)
+    );
     options.match.botCount = std::atoi(bridge::LoadSetting("bots", "4").c_str());
     options.match.botSkill = std::strtof(bridge::LoadSetting("botSkill", "0.3").c_str(), nullptr);
     options.match.fragLimit = static_cast<Int16>(std::atoi(bridge::LoadSetting("fragLimit", "15").c_str()));
@@ -174,6 +179,8 @@ void GameScene::SaveOptions() const
     bridge::SaveSetting("fov", std::to_string(options.fieldOfView));
     bridge::SaveSetting("volume", std::to_string(options.volume));
     bridge::SaveSetting("invertY", options.invertY ? "1" : "0");
+    bridge::SaveSetting("gore", options.gore ? "1" : "0");
+    bridge::SaveSetting("arena", std::to_string(static_cast<int>(options.match.arena)));
     bridge::SaveSetting("bots", std::to_string(options.match.botCount));
     bridge::SaveSetting("botSkill", std::to_string(options.match.botSkill));
     bridge::SaveSetting("fragLimit", std::to_string(options.match.fragLimit));
@@ -284,6 +291,7 @@ void GameScene::StartDemo()
     demo.botSkill = 0.55f;
     demo.fragLimit = 1000;
     demo.timeLimitSeconds = 100000.0f;
+    demo.arena = options.match.arena;
     world.Initialize(demo);
     for (int i = 0; i < DEMO_BOTS; ++i)
     {
@@ -293,6 +301,21 @@ void GameScene::StartDemo()
     effects.Clear();
     screen = Screen::MAIN_MENU;
     menuOpen = false;
+}
+
+void GameScene::SelectArena(const ArenaId arena)
+{
+    if (arena == options.match.arena)
+    {
+        return;
+    }
+    options.match.arena = arena;
+    SaveOptions();
+    // The menu backdrop shows the chosen level.
+    if (screen == Screen::MAIN_MENU)
+    {
+        StartDemo();
+    }
 }
 
 void GameScene::EnterMatch()
@@ -468,6 +491,7 @@ void GameScene::Update(const double elapsed_seconds)
 
     ProcessEvents();
     effects.Update(delta_seconds, world.arena);
+    effects.UpdateAmbient(delta_seconds, world.arena, cameraEye);
     UpdateRenderState(delta_seconds);
     UpdateCamera(delta_seconds);
     sfx.SetListener(cameraEye, cameraYaw);
@@ -816,7 +840,7 @@ void GameScene::HandleEvent(const GameEvent &event)
         const auto weapon = static_cast<WeaponId>((event.c & 0x7F) % WEAPON_COUNT);
         const Bool headshot = (event.c & 0x80) != 0;
         const FVec3 color = victim < MAX_PLAYERS ? PlayerColor(world.players[victim].colorIndex) : FVec3{1, 1, 1};
-        effects.AddGibs(event.p0, event.p1, color);
+        effects.AddGibs(event.p0, event.p1, color, headshot, weapon == WeaponId::NOVA);
         if (victim < MAX_PLAYERS)
         {
             world.players[victim].alive = false;
@@ -862,7 +886,7 @@ void GameScene::HandleEvent(const GameEvent &event)
         const int attacker = event.a == 255 ? -1 : event.a;
         if (!(event.b == local && local >= 0 && !demo))
         {
-            effects.AddSparks(event.p0, {0.0f, 1.0f, 0.0f}, {0.8f, 0.05f, 0.05f}, 5);
+            effects.AddBloodHit(event.p0, event.p1, event.c);
         }
         if (demo)
         {
@@ -999,10 +1023,23 @@ void GameScene::UpdateCamera(const Float delta_seconds)
     const Player *player = LocalPlayer();
     if (player == nullptr)
     {
+        // Circle the arena inside its walls.
+        const Float half_size = world.arena.boxes.empty() ? 40.0f : world.arena.boxes[0].bounds.max.x;
         const Float angle = realTime * 0.08f;
-        cameraEye = FVec3{std::sin(angle) * 38.0f, 17.0f, std::cos(angle) * 38.0f};
+        cameraEye = FVec3{std::sin(angle) * half_size * 0.8f, 13.0f, std::cos(angle) * half_size * 0.8f};
         math::GetYawPitchFromDirection(FVec3{0.0f, 2.0f, 0.0f} - cameraEye, cameraYaw, cameraPitch);
         cameraTilt = FVec3{0.0f, 0.0f, 0.0f};
+        // Developer aid for screenshots: EVO_PREVIEW="x y z yaw pitch" fixes the menu camera.
+        if (const Char *preview = std::getenv("EVO_PREVIEW"); preview != nullptr)
+        {
+            Float x = 0.0f;
+            Float y = 0.0f;
+            Float z = 0.0f;
+            if (std::sscanf(preview, "%f %f %f %f %f", &x, &y, &z, &cameraYaw, &cameraPitch) == 5)
+            {
+                cameraEye = FVec3{x, y, z};
+            }
+        }
         return;
     }
     if (player->alive)
@@ -1086,7 +1123,8 @@ void GameScene::Render()
     {
         return;
     }
-    renderer.BeginFrame();
+    renderer.SetArena(world.arena);
+    renderer.BeginFrame(realTime);
     const IVec2 size = window::Manager::GetInstance()->GetWindowSize(0);
     const Float aspect = size.y > 0 ? static_cast<Float>(size.x) / static_cast<Float>(size.y) : 16.0f / 9.0f;
     renderer.SetCamera(

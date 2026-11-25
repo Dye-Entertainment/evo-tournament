@@ -33,6 +33,7 @@ struct Options
     Float fieldOfView = 100.0f;
     Float volume = 0.8f;
     Bool invertY = false;
+    Bool gore = true;
     MatchSettings match;
 };
 
@@ -88,6 +89,7 @@ class GameScene final : public core::Scene
     void SaveOptions() const;
     InputFrame ReadInput(Float delta_seconds);
     void StartDemo();
+    void SelectArena(ArenaId arena);
     void StartOffline();
     void StartHost();
     void StartJoin();

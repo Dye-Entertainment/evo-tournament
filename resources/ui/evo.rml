@@ -157,6 +157,7 @@
                 <span class="name">Volume</span>
             </div>
             <label class="check"><input type="checkbox" data-checked="invertY"/>Invert mouse</label>
+            <label class="check"><input type="checkbox" data-checked="gore"/>Blood and gore</label>
         </div>
         <div class="gap"></div>
         <div class="button" data-if="showResume" data-event-click="action('resume')">Resume</div>
@@ -175,6 +176,13 @@
         <div class="field"><input type="text" class="text" maxlength="15" data-value="name"/></div>
         <div class="gap"></div>
 
+        <div class="label">Arena</div>
+        <div class="maps">
+            <div class="map bastion" data-class-selected="arena == 0" data-event-click="action('arena0')">BASTION</div>
+            <div class="map foundry" data-class-selected="arena == 1" data-event-click="action('arena1')">FOUNDRY</div>
+            <div class="map frost" data-class-selected="arena == 2" data-event-click="action('arena2')">FROSTSPIRE</div>
+        </div>
+        <div class="help">{{ arenaDescription }}</div>
         <div class="button huge" data-event-click="action('instant')">INSTANT ACTION</div>
         <div class="slider">
             <div class="control"><input type="range" min="0" max="11" step="1" data-value="botCount"/><div class="value">{{ botCount }}</div></div>
@@ -227,6 +235,7 @@
                 <span class="name">Volume</span>
             </div>
             <label class="check"><input type="checkbox" data-checked="invertY"/>Invert mouse</label>
+            <label class="check"><input type="checkbox" data-checked="gore"/>Blood and gore</label>
         </div>
         <div class="header" data-event-click="showControls = !showControls">
             <span class="arrow">{{ showControls ? 'v' : '&gt;' }}</span>Controls

@@ -354,6 +354,7 @@ void Session::HostReceive(World &world, const int peer, const std::vector<UInt8>
         writer.U8(static_cast<UInt8>(id));
         writer.I16(world.settings.fragLimit);
         writer.F32(world.settings.timeLimitSeconds);
+        writer.U8(static_cast<UInt8>(world.settings.arena));
         transport->Send(peer, writer.data);
         transport->Send(peer, BuildRoster(world));
         transport->Send(peer, BuildSnapshot(world));
@@ -649,12 +650,17 @@ void Session::ClientReceive(World &world, const std::vector<UInt8> &data)
         const UInt8 id = reader.U8();
         const Int16 frag_limit = reader.I16();
         const Float time_limit = reader.F32();
-        if (reader.Failed() || id >= MAX_PLAYERS)
+        const UInt8 arena = reader.U8();
+        if (reader.Failed() || id >= MAX_PLAYERS || arena >= ARENA_COUNT)
         {
             return;
         }
         if (state == SessionState::CONNECTING)
         {
+            // The host picks the level.
+            MatchSettings settings = world.settings;
+            settings.arena = static_cast<ArenaId>(arena);
+            world.Initialize(settings);
             localPlayer = id;
             world.settings.fragLimit = frag_limit;
             world.settings.timeLimitSeconds = time_limit;

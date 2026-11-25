@@ -2,13 +2,13 @@
 
 A fast arena deathmatch shooter built on the [evogine](https://github.com/Dye-Entertainment/evogine)
 engine (included as a git submodule). It's an original game in the classic arena-shooter style:
-double jumps, dodges, wall runs, jump pads, power-up control and bots that hunt you through a
-multi-level arena. It runs natively on Linux and in the browser.
+double jumps, dodges, wall runs, jump pads, power-up control and bots that hunt you through three
+multi-level arenas. It runs natively on Linux and in the browser.
 
 ## Play
 
-- **Browser:** open the GitHub Pages site for this repository. Click **Instant Action** to
-  play against bots, or **Host Online Match** to play with friends.
+- **Browser:** open the GitHub Pages site for this repository. Pick an arena, then click
+  **Instant Action** to play against bots, or **Host Online Match** to play with friends.
 - **Linux:** `make run` (see *Building*).
 
 ### Controls
@@ -37,8 +37,27 @@ or off.
 - **Nova Launcher**: slow plasma orbs with splash damage and knockback. Useful for
   rocket-jumping (you take reduced self-damage).
 - **Rail Lance**: a slow-firing, hard-hitting beam. Headshots deal 1.75× damage.
-- Health, Mega Health (on the north balcony), Armor (south balcony) and ammo packs
-  respawn on timers. Controlling them is half the game.
+- Health, Mega Health, Armor and ammo packs respawn on timers. Controlling them is half the
+  game.
+
+### Arenas
+
+Pick one in the main menu; the menu backdrop shows it. Online, the host's choice applies.
+
+- **Bastion**: a sunset fortress. A central keep holds the Rail Lance, the Mega Health sits
+  on the bridge above it, and jump pads throw you up to the north and south decks.
+- **Foundry**: a closed forge hall with molten channels. The Mega Health is on the raised
+  crucible in the middle; a catwalk ring at 5 m (stairs east and west, jump pads north and
+  south) holds the Rail Lance and Armor.
+- **Frostspire**: an open snowfield at night under an aurora. Two ice towers are joined by a
+  narrow sky bridge with the Rail Lance in the middle; the Mega Health is on the ground
+  below it.
+
+### Blood and gore
+
+Hits spray blood that splatters floors and walls, and kills burst players into chunks,
+limbs and armor plates (headshots take the head off). Turn it off with **Blood and gore**
+under *Options*; hits then throw sparks and kills only scatter armor.
 
 ## Multiplayer
 
@@ -83,8 +102,25 @@ make pages      # web build packaged into ./site for GitHub Pages
 To try the web build locally, serve `site/` (for example `python3 -m http.server -d site`)
 and open it in a browser.
 
+`make test` simulates eight bots for five minutes on every arena and fails if bots get stuck,
+end up inside geometry or never reach the high ground.
+
+For screenshots, `EVO_PREVIEW="x y z yaw pitch"` hides the main menu and holds the backdrop
+camera at that spot (yaw 0 looks along +z, positive pitch looks up).
+
 Engine fixes that this game needs live in `patches/`. CMake applies them to the submodule
 automatically; see `patches/README.md`.
+
+## Graphics
+
+Everything is drawn with one shader (`resources/shaders/arena.fs`). When a level loads, its
+boxes are cut into 1.5 m cells and each vertex gets baked ambient occlusion, soft sun
+shadows and the light of the level's colored lamps (with shadows); this takes well under a
+tenth of a second, even in the browser. On top of that the shader adds sun and sky light,
+specular highlights, up to 12 point lights per frame (muzzle flashes, explosions, rail
+beams, orbs, nearby lamps), procedural panels and grime, height fog and ACES tone mapping.
+The sky (sun, clouds, stars, aurora) is procedural too. Each arena's look is an
+`ArenaTheme` in `src/game/arena.cpp` / `arena_levels.cpp`.
 
 ## UI
 
@@ -95,10 +131,10 @@ room code) write straight back into it. The UI scales down on small windows such
 ## Layout
 
 ```
-src/game/    match rules, movement, bots, arena, game scene; game_scene_ui.cpp fills the UI
+src/game/    match rules, movement, bots, arenas (arena_levels.cpp), game scene; game_scene_ui.cpp fills the UI
 src/ui/      the RmlUi data model behind the menus and the HUD
 src/net/     transports (UDP, WebRTC bridge) and the host/client session
-src/render/  procedural meshes, renderer wrapper, particle effects
+src/render/  procedural meshes, light baking, renderer wrapper, particles, blood and gore
 src/audio/   sound playback on the engine's miniaudio backend
 web/         HTML shell and the PeerJS bridge (emscripten JS library)
 resources/   shaders, synthesized sounds, font, UI documents (ui/evo.rml, evo.rcss),

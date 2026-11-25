@@ -134,25 +134,51 @@ void GameScene::DrawPlayer(const Player &player)
     const auto place = [&](const FVec3 &offset)
     { return base + (right * offset.x + up * offset.y + forward * offset.z); };
 
+    // A soft contact shadow on the ground below.
+    RayHit ground;
+    if (world.arena.RayCast(base + FVec3{0.0f, 0.2f, 0.0f}, FVec3{0.0f, -1.0f, 0.0f}, 12.0f, ground))
+    {
+        const Float height = ground.distance - 0.2f;
+        const Float strength = math::Clamp(1.0f - height / 6.0f, 0.0f, 1.0f);
+        renderer.DrawDecal(MeshShape::DISC, base - FVec3{0.0f, height, 0.0f}, {0.0f, 1.0f, 0.0f},
+                           1.5f + height * 0.15f, 0.0f, {0.0f, 0.0f, 0.0f}, 0.6f * strength);
+    }
+    const SurfaceStyle armor{0.55f, renderer.SunVisibility(base + FVec3{0.0f, 1.2f, 0.0f})};
+    const SurfaceStyle cloth{0.15f, armor.sun};
+
     const FVec3 leg_color{0.16f, 0.16f, 0.19f};
-    renderer.DrawShape(MeshShape::CUBE, place({0.14f, 0.43f + tuck, swing + tuck * 0.5f}), {0.22f, 0.86f - tuck, 0.26f},
-                       leg_color, 0.0f, yaw);
-    renderer.DrawShape(MeshShape::CUBE, place({-0.14f, 0.43f + tuck, -swing - tuck * 0.5f}),
-                       {0.22f, 0.86f - tuck, 0.26f}, leg_color, 0.0f, yaw);
-    renderer.DrawShape(
-        MeshShape::CUBE, place({0.0f, 1.17f, 0.0f}), {0.62f, 0.64f, 0.36f}, color * 0.75f, 0.0f, yaw
-    );
+    const Float swing_angle = swing * 2.2f;
+    // Legs swing from the hip, with knee pads and boots.
+    for (const Float side : {1.0f, -1.0f})
+    {
+        const Float angle = side * swing_angle + tuck * 1.5f;
+        const FVec3 hip = place({0.14f * side, 0.86f, 0.0f});
+        const FVec3 leg_axis = (up * -std::cos(angle) + forward * std::sin(angle));
+        renderer.DrawShape(MeshShape::CUBE, hip + leg_axis * (0.43f - tuck * 0.5f), {0.22f, 0.86f - tuck, 0.26f},
+                           leg_color, 0.0f, yaw, angle, 0.0f, cloth);
+        renderer.DrawShape(MeshShape::CUBE, hip + leg_axis * 0.5f + forward * 0.13f, {0.18f, 0.16f, 0.06f},
+                           color * 0.5f, 0.0f, yaw, angle, 0.0f, armor);
+        renderer.DrawShape(MeshShape::CUBE, hip + leg_axis * (0.82f - tuck * 0.5f) + forward * 0.04f,
+                           {0.25f, 0.12f, 0.34f}, {0.08f, 0.08f, 0.1f}, 0.0f, yaw, angle, 0.0f, armor);
+    }
+    renderer.DrawShape(MeshShape::CUBE, place({0.0f, 0.92f, 0.0f}), {0.5f, 0.16f, 0.32f}, {0.12f, 0.12f, 0.14f}, 0.0f,
+                       yaw, 0.0f, 0.0f, armor);
+    renderer.DrawShape(MeshShape::CUBE, place({0.0f, 1.17f, 0.0f}), {0.62f, 0.64f, 0.36f}, color * 0.75f, 0.0f, yaw,
+                       0.0f, 0.0f, armor);
+    renderer.DrawShape(MeshShape::CUBE, place({0.0f, 1.22f, -0.2f}), {0.4f, 0.44f, 0.12f}, {0.14f, 0.14f, 0.17f}, 0.0f,
+                       yaw, 0.0f, 0.0f, armor);
     renderer.DrawShape(MeshShape::CUBE, place({0.0f, 1.3f, 0.17f}), {0.42f, 0.09f, 0.04f}, color, 1.0f, yaw);
-    renderer.DrawShape(
-        MeshShape::CUBE, place({0.39f, 1.13f, -swing * 0.5f}), {0.15f, 0.56f, 0.17f}, color * 0.6f,
-        0.0f, yaw
-    );
-    renderer.DrawShape(
-        MeshShape::CUBE, place({-0.39f, 1.13f, swing * 0.5f}), {0.15f, 0.56f, 0.17f}, color * 0.6f,
-        0.0f, yaw
-    );
+    for (const Float side : {1.0f, -1.0f})
+    {
+        renderer.DrawShape(MeshShape::CUBE, place({0.36f * side, 1.42f, 0.0f}), {0.24f, 0.14f, 0.4f}, color * 0.9f,
+                           0.0f, yaw, 0.0f, -0.25f * side, armor);
+        renderer.DrawShape(
+            MeshShape::CUBE, place({0.39f * side, 1.13f, -swing * 0.5f * side}), {0.15f, 0.56f, 0.17f},
+            color * 0.6f, 0.0f, yaw, 0.0f, 0.0f, cloth
+        );
+    }
     renderer.DrawShape(MeshShape::CUBE, place({0.0f, 1.66f, 0.0f}), {0.34f, 0.32f, 0.34f}, {0.82f, 0.83f, 0.86f}, 0.0f,
-                       yaw, player.renderPitch * 0.5f);
+                       yaw, player.renderPitch * 0.5f, 0.0f, armor);
     const FVec3 visor_offset =
         math::GetDirectionFromYawPitch(yaw, player.renderPitch * 0.5f) * 0.16f +
         FVec3{0.0f, 0.02f, 0.0f};
@@ -169,6 +195,7 @@ void GameScene::DrawPlayer(const Player &player)
         const FVec3 muzzle =
             gun_position + math::GetDirectionFromYawPitch(yaw, player.renderPitch) * 0.65f;
         renderer.DrawShape(MeshShape::SPHERE, muzzle, {0.25f, 0.25f, 0.25f}, GetWeaponDef(player.weapon).color, 1.0f);
+        renderer.DrawGlow(muzzle, 0.9f, GetWeaponDef(player.weapon).color, 0.5f);
     }
 }
 
@@ -192,6 +219,8 @@ void GameScene::DrawPickups()
         const Float phase = realTime * 2.0f + pickup.position.x * 0.3f + pickup.position.z * 0.17f;
         const FVec3 center = pickup.position + FVec3{0.0f, 0.75f + std::sin(phase) * 0.12f, 0.0f};
         const Float spin = realTime * 1.6f;
+        renderer.DrawGlow(center, pickup.kind == PickupKind::MEGA_HEALTH ? 2.2f : 1.4f, color,
+                          0.16f + 0.05f * std::sin(phase * 1.5f));
         switch (pickup.kind)
         {
         case PickupKind::HEALTH:
@@ -282,11 +311,34 @@ void GameScene::DrawProjectiles()
         const Float pulse = 0.55f + 0.08f * std::sin(realTime * 30.0f + static_cast<Float>(projectile.id));
         renderer.DrawShape(MeshShape::SPHERE, projectile.position, {pulse, pulse, pulse}, color, 1.0f);
         renderer.DrawShape(MeshShape::SPHERE, projectile.position, {0.3f, 0.3f, 0.3f}, {1.0f, 0.95f, 0.8f}, 1.0f);
+        renderer.DrawGlow(projectile.position, 1.8f, color, 0.45f);
     }
 }
 
 void GameScene::DrawWorld()
 {
+    // Lights first: every draw this frame uses them.
+    effects.AddLights(renderer);
+    for (const Projectile &projectile : world.projectiles)
+    {
+        renderer.AddLight(DynamicLight{projectile.position, GetWeaponDef(WeaponId::NOVA).color * 1.3f, 7.0f});
+    }
+    for (int i = 0; i < MAX_PLAYERS; ++i)
+    {
+        const Player &player = world.players[i];
+        if (player.active && player.alive && player.fireFlash > 0.0f)
+        {
+            renderer.AddLight(DynamicLight{player.renderPosition + FVec3{0.0f, 1.4f, 0.0f},
+                                           GetWeaponDef(player.weapon).color * 1.5f, 6.0f});
+        }
+    }
+    if (recoil > 0.5f)
+    {
+        if (const Player *local = LocalPlayer())
+        {
+            renderer.AddLight(DynamicLight{cameraEye, GetWeaponDef(local->weapon).color * (recoil * 0.8f), 5.0f});
+        }
+    }
     renderer.DrawSky();
     renderer.DrawLevel();
     DrawJumpPads();

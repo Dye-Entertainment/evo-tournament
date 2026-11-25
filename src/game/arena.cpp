@@ -37,9 +37,119 @@ constexpr Float PAD_HORIZONTAL_SPEED = 6.7f;
 constexpr Float PAD_VERTICAL_SPEED = 18.0f;
 } // namespace
 
+const Char *ArenaName(const ArenaId id)
+{
+    switch (id)
+    {
+    case ArenaId::FOUNDRY:
+        return "Foundry";
+    case ArenaId::FROSTSPIRE:
+        return "Frostspire";
+    default:
+        return "Bastion";
+    }
+}
+
+const Char *ArenaDescription(const ArenaId id)
+{
+    switch (id)
+    {
+    case ArenaId::FOUNDRY:
+        return "A molten forge hall. Hold the crucible, fight for the catwalk ring.";
+    case ArenaId::FROSTSPIRE:
+        return "Twin ice towers under the aurora, joined by a narrow sky bridge.";
+    default:
+        return "A sunset fortress with a central keep, high decks and a long bridge.";
+    }
+}
+
+void Arena::Clear()
+{
+    boxes.clear();
+    lights.clear();
+    jumpPads.clear();
+    spawnPoints.clear();
+    pickupSpots.clear();
+    waypoints.clear();
+    theme = ArenaTheme{};
+}
+
+void Arena::Build(const ArenaId arena_id)
+{
+    Clear();
+    id = arena_id;
+    name = ArenaName(arena_id);
+    switch (arena_id)
+    {
+    case ArenaId::FOUNDRY:
+        BuildFoundry();
+        break;
+    case ArenaId::FROSTSPIRE:
+        BuildFrostspire();
+        break;
+    default:
+        id = ArenaId::BASTION;
+        BuildBastion();
+        break;
+    }
+}
+
 void Arena::AddBox(const FVec3 &min, const FVec3 &max, const FVec3 &color, const Float grid)
 {
-    boxes.push_back(ArenaBox{primitive::AxisAlignedBox{min, max}, color, grid});
+    boxes.push_back(ArenaBox{primitive::AxisAlignedBox{min, max}, color, grid, 0.0f});
+}
+
+void Arena::AddGlow(const FVec3 &min, const FVec3 &max, const FVec3 &color)
+{
+    boxes.push_back(ArenaBox{primitive::AxisAlignedBox{min, max}, color, 0.0f, 1.0f, false});
+}
+
+void Arena::AddStairsX(
+    const Float top_edge, const Float direction, const Float z0, const Float z1, const int steps,
+    const FVec3 &color
+)
+{
+    for (int k = 1; k <= steps; ++k)
+    {
+        const Float height = 0.5f * static_cast<Float>(k);
+        const Float far_end = top_edge - direction * static_cast<Float>(steps + 1 - k);
+        AddBox({std::min(top_edge, far_end), 0, z0}, {std::max(top_edge, far_end), height, z1}, color);
+    }
+}
+
+void Arena::AddStairsZ(
+    const Float top_edge, const Float direction, const Float x0, const Float x1, const int steps,
+    const FVec3 &color
+)
+{
+    for (int k = 1; k <= steps; ++k)
+    {
+        const Float height = 0.5f * static_cast<Float>(k);
+        const Float far_end = top_edge - direction * static_cast<Float>(steps + 1 - k);
+        AddBox({x0, 0, std::min(top_edge, far_end)}, {x1, height, std::max(top_edge, far_end)}, color);
+    }
+}
+
+void Arena::AddJumpPad(const FVec3 &center, const FVec3 &direction, const FVec3 &color)
+{
+    boxes.push_back(ArenaBox{
+        primitive::AxisAlignedBox{
+            {center.x - 1.0f, 0.0f, center.z - 1.0f}, {center.x + 1.0f, 0.15f, center.z + 1.0f}
+        },
+        color, 0.0f, 1.0f
+    });
+    jumpPads.push_back(
+        JumpPad{
+            primitive::AxisAlignedBox{center - FVec3{1.0f, 0.0f, 1.0f}, center + FVec3{1.0f, 0.7f, 1.0f}},
+            direction * PAD_HORIZONTAL_SPEED + FVec3{0.0f, PAD_VERTICAL_SPEED, 0.0f}
+        }
+    );
+    lights.push_back(ArenaLight{center + FVec3{0.0f, 1.2f, 0.0f}, color * 0.9f, 7.0f});
+}
+
+void Arena::AddSpawn(const FVec3 &position)
+{
+    spawnPoints.push_back(SpawnPoint{position, std::atan2(-position.x, -position.z)});
 }
 
 int Arena::AddWaypoint(const FVec3 &position)
@@ -61,12 +171,16 @@ void Arena::LinkOneWay(const int from, const int to)
 
 void Arena::BuildBastion()
 {
-    name = "Bastion";
-    boxes.clear();
-    jumpPads.clear();
-    spawnPoints.clear();
-    pickupSpots.clear();
-    waypoints.clear();
+    theme.skyZenith = {0.07f, 0.06f, 0.20f};
+    theme.skyHorizon = {0.95f, 0.45f, 0.30f};
+    theme.skyAmbient = {0.30f, 0.30f, 0.42f};
+    theme.groundAmbient = {0.22f, 0.16f, 0.14f};
+    theme.sunDirection = math::GetNormalized(FVec3{0.50f, 0.62f, 0.35f});
+    theme.sunColor = {0.95f, 0.72f, 0.52f};
+    theme.fogColor = {0.36f, 0.24f, 0.28f};
+    theme.fogDensity = 0.011f;
+    theme.stars = 0.35f;
+    theme.clouds = 0.8f;
 
     constexpr Float H = HALF_SIZE;
     constexpr Float DECK_BOTTOM = DECK_HEIGHT - DECK_THICKNESS;
@@ -77,10 +191,18 @@ void Arena::BuildBastion()
     AddBox({-H - 1, 0, -H - 1}, {H + 1, WALL_HEIGHT, -H}, WALL_COLOR);
     AddBox({H, 0, -H}, {H + 1, WALL_HEIGHT, H}, WALL_COLOR);
     AddBox({-H - 1, 0, -H}, {-H, WALL_HEIGHT, H}, WALL_COLOR);
-    AddBox({-H, 11.8f, H - 0.15f}, {H, 12.1f, H}, TRIM_COLOR, 0.0f);
-    AddBox({-H, 11.8f, -H}, {H, 12.1f, -H + 0.15f}, TRIM_COLOR, 0.0f);
-    AddBox({H - 0.15f, 11.8f, -H}, {H, 12.1f, H}, TRIM_COLOR, 0.0f);
-    AddBox({-H, 11.8f, -H}, {-H + 0.15f, 12.1f, H}, TRIM_COLOR, 0.0f);
+    AddGlow({-H, 11.8f, H - 0.15f}, {H, 12.1f, H}, TRIM_COLOR);
+    AddGlow({-H, 11.8f, -H}, {H, 12.1f, -H + 0.15f}, TRIM_COLOR);
+    AddGlow({H - 0.15f, 11.8f, -H}, {H, 12.1f, H}, TRIM_COLOR);
+    AddGlow({-H, 11.8f, -H}, {-H + 0.15f, 12.1f, H}, TRIM_COLOR);
+    for (const Float t : {-30.0f, 0.0f, 30.0f})
+    {
+        lights.push_back(ArenaLight{{t, 10.5f, H - 2.0f}, TRIM_COLOR * 0.8f, 14.0f});
+        lights.push_back(ArenaLight{{t, 10.5f, -H + 2.0f}, TRIM_COLOR * 0.8f, 14.0f});
+        lights.push_back(ArenaLight{{H - 2.0f, 10.5f, t}, TRIM_COLOR * 0.8f, 14.0f});
+        lights.push_back(ArenaLight{{-H + 2.0f, 10.5f, t}, TRIM_COLOR * 0.8f, 14.0f});
+    }
+    lights.push_back(ArenaLight{{0.0f, 4.6f, 0.0f}, {1.0f, 0.6f, 0.3f}, 9.0f});
 
     // Central keep with stairs on its east and west faces and two low cover walls on top.
     AddBox({-KEEP_HALF, 0, -KEEP_HALF}, {KEEP_HALF, KEEP_HEIGHT, KEEP_HALF}, KEEP_COLOR);
@@ -101,8 +223,9 @@ void Arena::BuildBastion()
         {-BRIDGE_HALF_WIDTH, DECK_BOTTOM, -DECK_EDGE}, {BRIDGE_HALF_WIDTH, DECK_HEIGHT, DECK_EDGE},
         DECK_COLOR
     );
-    AddBox({-BRIDGE_HALF_WIDTH, DECK_HEIGHT, -0.4f}, {-BRIDGE_HALF_WIDTH + 0.2f, DECK_HEIGHT + 0.5f, 0.4f}, TRIM_COLOR, 0.0f);
-    AddBox({BRIDGE_HALF_WIDTH - 0.2f, DECK_HEIGHT, -0.4f}, {BRIDGE_HALF_WIDTH, DECK_HEIGHT + 0.5f, 0.4f}, TRIM_COLOR, 0.0f);
+    AddGlow({-BRIDGE_HALF_WIDTH, DECK_HEIGHT, -0.4f}, {-BRIDGE_HALF_WIDTH + 0.2f, DECK_HEIGHT + 0.5f, 0.4f}, TRIM_COLOR);
+    AddGlow({BRIDGE_HALF_WIDTH - 0.2f, DECK_HEIGHT, -0.4f}, {BRIDGE_HALF_WIDTH, DECK_HEIGHT + 0.5f, 0.4f}, TRIM_COLOR);
+    lights.push_back(ArenaLight{{0.0f, DECK_HEIGHT + 1.2f, 0.0f}, TRIM_COLOR * 0.7f, 6.0f});
     for (const Float z : {-20.0f, 20.0f})
     {
         AddBox({-BRIDGE_HALF_WIDTH, 0, z - 0.5f}, {-BRIDGE_HALF_WIDTH + 0.5f, DECK_BOTTOM, z + 0.5f}, PILLAR_COLOR);
@@ -166,42 +289,23 @@ void Arena::BuildBastion()
     }
 
     // Jump pads that throw you onto the decks.
-    const auto add_pad = [&](const FVec3 &center, const FVec3 &direction)
-    {
-        AddBox(
-            {center.x - 1.0f, 0.0f, center.z - 1.0f}, {center.x + 1.0f, 0.15f, center.z + 1.0f},
-            PAD_COLOR, 0.0f
-        );
-        jumpPads.push_back(
-            JumpPad{
-                primitive::AxisAlignedBox{
-                    center - FVec3{1.0f, 0.0f, 1.0f}, center + FVec3{1.0f, 0.7f, 1.0f}
-                },
-                direction * PAD_HORIZONTAL_SPEED + FVec3{0.0f, PAD_VERTICAL_SPEED, 0.0f}
-            }
-        );
-    };
-    add_pad({24, 0, 34}, {0, 0, 1});
-    add_pad({-24, 0, 34}, {0, 0, 1});
-    add_pad({24, 0, -34}, {0, 0, -1});
-    add_pad({-24, 0, -34}, {0, 0, -1});
+    AddJumpPad({24, 0, 34}, {0, 0, 1}, PAD_COLOR);
+    AddJumpPad({-24, 0, 34}, {0, 0, 1}, PAD_COLOR);
+    AddJumpPad({24, 0, -34}, {0, 0, -1}, PAD_COLOR);
+    AddJumpPad({-24, 0, -34}, {0, 0, -1}, PAD_COLOR);
 
-    const auto add_spawn = [&](const FVec3 &position)
-    {
-        spawnPoints.push_back(SpawnPoint{position, std::atan2(-position.x, -position.z)});
-    };
-    add_spawn({30, 0, 12});
-    add_spawn({-30, 0, -12});
-    add_spawn({-12, 0, 32});
-    add_spawn({12, 0, -32});
-    add_spawn({41, WING_HEIGHT, -10});
-    add_spawn({-41, WING_HEIGHT, 10});
-    add_spawn({-24, DECK_HEIGHT, 42});
-    add_spawn({24, DECK_HEIGHT, -42});
-    add_spawn({14, 0, -6});
-    add_spawn({-14, 0, 6});
-    add_spawn({12, DECK_HEIGHT, 42});
-    add_spawn({-12, DECK_HEIGHT, -42});
+    AddSpawn({30, 0, 12});
+    AddSpawn({-30, 0, -12});
+    AddSpawn({-12, 0, 32});
+    AddSpawn({12, 0, -32});
+    AddSpawn({41, WING_HEIGHT, -10});
+    AddSpawn({-41, WING_HEIGHT, 10});
+    AddSpawn({-24, DECK_HEIGHT, 42});
+    AddSpawn({24, DECK_HEIGHT, -42});
+    AddSpawn({14, 0, -6});
+    AddSpawn({-14, 0, 6});
+    AddSpawn({12, DECK_HEIGHT, 42});
+    AddSpawn({-12, DECK_HEIGHT, -42});
 
     pickupSpots = {
         {PickupKind::WEAPON_RAIL, {0, KEEP_HEIGHT, 0}},
@@ -356,6 +460,10 @@ Bool Arena::RayCast(
     Float best = max_distance;
     for (const ArenaBox &box : boxes)
     {
+        if (!box.solid)
+        {
+            continue;
+        }
         Float distance = 0.0f;
         FVec3 normal;
         if (primitive::IntersectRay(box.bounds, origin, direction, best, distance, normal) &&
@@ -390,7 +498,7 @@ Bool Arena::IsBlocked(const primitive::AxisAlignedBox &box) const
 {
     for (const ArenaBox &arena_box : boxes)
     {
-        if (primitive::Overlaps(box, arena_box.bounds))
+        if (arena_box.solid && primitive::Overlaps(box, arena_box.bounds))
         {
             return true;
         }

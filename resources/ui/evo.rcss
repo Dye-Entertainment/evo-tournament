@@ -81,6 +81,28 @@ h2 { text-align: center; font-size: 28dp; line-height: 36dp; color: #ff8c28; }
 .button.large { height: 40dp; line-height: 40dp; font-size: 19dp; }
 
 .row { display: flex; align-items: center; margin-bottom: 9dp; }
+
+/* Arena picker */
+.maps { display: flex; margin-bottom: 2dp; }
+.map
+{
+    flex: 1;
+    height: 52dp;
+    line-height: 52dp;
+    margin-right: 8dp;
+    text-align: center;
+    font-size: 16dp;
+    border-radius: 6dp;
+    border: 2dp #00000000;
+    cursor: pointer;
+    font-effect: shadow(2dp 2dp #000000cc);
+}
+.map:last-child { margin-right: 0; }
+.map.bastion { decorator: vertical-gradient(#c8603c #2a1a3a); }
+.map.foundry { decorator: vertical-gradient(#9a3a10 #1c0d08); }
+.map.frost { decorator: vertical-gradient(#1e5a78 #0a1022); }
+.map:hover { border-color: #ffffff66; }
+.map.selected { border-color: #ff8c28; }
 .row .grow { flex: 1; }
 .row .button { margin: 0 0 0 10dp; padding: 0 16dp; }
 .row .button.first { margin-left: 0; }

@@ -89,7 +89,7 @@ const Char *PickupName(const PickupKind kind)
 void World::Initialize(const MatchSettings &match_settings)
 {
     settings = match_settings;
-    arena.BuildBastion();
+    arena.Build(settings.arena);
     players = {};
     projectiles.clear();
     eventLog.clear();
@@ -606,6 +606,9 @@ void World::Damage(
     event.b = static_cast<UInt8>(victim);
     event.c = static_cast<UInt8>(std::min<int>(amount, 255));
     event.p0 = player.move.position + FVec3{0.0f, 1.2f, 0.0f};
+    // Where the damage came from, so clients can spray blood away from it.
+    event.p1 = attacker >= 0 && attacker != victim ? EyePosition(players[attacker].move)
+                                                   : event.p0 + FVec3{0.0f, -1.0f, 0.0f};
     EmitEvent(event);
 
     if (player.health <= 0)
