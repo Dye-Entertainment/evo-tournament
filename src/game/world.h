@@ -17,16 +17,37 @@ constexpr Int16 START_HEALTH = 100;
 constexpr Int16 MAX_HEALTH = 100;
 constexpr Int16 MAX_MEGA_HEALTH = 199;
 constexpr Int16 MAX_ARMOR = 150;
+constexpr Int16 MAX_GRENADES = 4;
+constexpr Int16 MAX_MINES = 3;
+// How many of a player's mines can be in the arena at once; placing another removes the oldest.
+constexpr int MAX_ACTIVE_MINES = 3;
 
 enum class WeaponId : UInt8
 {
     RIFLE,
     NOVA,
     RAIL,
+    SCATTER,
+    FRAG,
+    RIPPER,
     COUNT
 };
 
 constexpr int WEAPON_COUNT = static_cast<int>(WeaponId::COUNT);
+
+// What kind of thing is in flight (or lying in the arena).
+enum class ProjectileKind : UInt8
+{
+    NOVA,
+    // Fired by the Frag Launcher: bounces, bursts on a direct hit or when its fuse runs out.
+    FRAG,
+    // Thrown by hand: bounces, bursts when its fuse runs out.
+    GRENADE,
+    MINE,
+    // Ripper disc: ricochets off walls.
+    DISC,
+    COUNT
+};
 
 struct WeaponDef
 {
@@ -44,9 +65,54 @@ struct WeaponDef
     Float knockback;
     Float headshotMultiplier;
     FVec3 color;
+    // Hitscan pellets per shot (Scattergun) and how far they fan out.
+    int pellets = 1;
+    Float pelletSpread = 0.0f;
+    ProjectileKind projectile = ProjectileKind::NOVA;
 };
 
 const WeaponDef &GetWeaponDef(WeaponId weapon);
+
+// What dealt the damage, for the kill feed. The first values match WeaponId.
+enum class DamageSource : UInt8
+{
+    RIFLE,
+    NOVA,
+    RAIL,
+    SCATTER,
+    FRAG,
+    RIPPER,
+    GRENADE,
+    MINE,
+    COUNT
+};
+
+[[nodiscard]]
+inline DamageSource SourceOf(const WeaponId weapon)
+{
+    return static_cast<DamageSource>(weapon);
+}
+
+[[nodiscard]]
+const Char *DamageSourceName(DamageSource source);
+
+[[nodiscard]]
+Bool IsExplosive(DamageSource source);
+
+[[nodiscard]]
+FVec3 DamageSourceColor(DamageSource source);
+
+// Blast settings of things that explode.
+struct BlastDef
+{
+    Float radius;
+    Int16 damage;
+    Float knockback;
+    DamageSource source;
+};
+
+[[nodiscard]]
+const BlastDef &GetBlastDef(ProjectileKind kind);
 
 enum class PlayerControl : UInt8
 {
@@ -77,6 +143,8 @@ struct BotBrain
     Float aimErrorPitch = 0.0f;
     Float burstTimer = -1.0f;
     Float burstPause = 0.0f;
+    Float throwTimer = 4.0f;
+    Float mineTimer = 10.0f;
     Float skill = 0.5f;
 };
 
@@ -99,6 +167,9 @@ struct Player
     std::array<Bool, WEAPON_COUNT> hasWeapon{};
     std::array<Int16, WEAPON_COUNT> ammo{};
     Float fireCooldown = 0.0f;
+    Int16 grenades = 0;
+    Int16 mines = 0;
+    Float throwCooldown = 0.0f;
     Int16 frags = 0;
     Int16 deaths = 0;
     UInt8 spawnCount = 0;
@@ -118,9 +189,18 @@ struct Projectile
 {
     UInt16 id = 0;
     UInt8 owner = 0;
+    ProjectileKind kind = ProjectileKind::NOVA;
     FVec3 position;
     FVec3 velocity;
     Float life = 0.0f;
+    Float age = 0.0f;
+    UInt8 bounces = 0;
+    // Grenades come to rest; mines stick where they land.
+    Bool resting = false;
+    // Mines arm a moment after they land.
+    Bool armed = false;
+    // Set when a nearby blast sets this off; it bursts on the next tick.
+    Bool detonate = false;
 };
 
 struct Pickup
@@ -141,7 +221,11 @@ enum class EventType : UInt8
     HIT,
     SPAWN,
     MATCH_END,
-    MATCH_START
+    MATCH_START,
+    // a = thrower, b = 0 for a grenade, 1 for a mine
+    THROW,
+    BOUNCE,
+    MINE_ARMED
 };
 
 struct GameEvent
@@ -182,8 +266,12 @@ struct MatchState
 struct FireRequest
 {
     Bool fire = false;
+    Bool throwGrenade = false;
+    Bool placeMine = false;
     FVec3 origin;
     FVec3 direction;
+    // Unspread view direction for grenades and mines.
+    FVec3 throwDirection;
 };
 
 class World final
@@ -200,7 +288,12 @@ class World final
 
     void HostTick(Float delta_seconds, const MoveInput &local_input, const FireRequest &local_fire);
 
-    void HostFire(int player_id, const FVec3 &origin, const FVec3 &direction);
+    // `pellet_seed` picks the Scattergun's pellet pattern.
+    void HostFire(int player_id, const FVec3 &origin, const FVec3 &direction, UInt32 pellet_seed = 0);
+    // Throws a grenade or drops a mine if the player has one and the throw cooldown allows it.
+    Bool HostThrow(int player_id, Bool mine, const FVec3 &origin, const FVec3 &direction);
+    [[nodiscard]]
+    Bool CanThrow(const Player &player, Bool mine) const;
     void HostRespawn(int player_id);
     void RestartMatch();
 
@@ -244,15 +337,18 @@ class World final
     void StepPickups(Float delta_seconds);
     void StepMatch(Float delta_seconds);
     void Explode(const Projectile &projectile, const FVec3 &position);
-    void Damage(int victim, int attacker, Int16 amount, WeaponId weapon, Bool headshot);
+    UInt16 SpawnProjectile(int owner, ProjectileKind kind, const FVec3 &position, const FVec3 &velocity, Float life);
+    void Damage(int victim, int attacker, Int16 amount, DamageSource source, Bool headshot);
     void ApplyImpulse(int player_id, const FVec3 &impulse);
-    void Kill(int victim, int attacker, WeaponId weapon, Bool headshot);
+    void Kill(int victim, int attacker, DamageSource source, Bool headshot);
     Bool TryGivePickup(Player &player, PickupKind kind);
     [[nodiscard]]
     FVec3 PickSpawn(int player_id, Float &yaw);
 };
 
 FVec3 PlayerColor(UInt8 color_index);
+// Direction of one Scattergun pellet; pellet 0 flies straight.
+FVec3 PelletDirection(const FVec3 &direction, UInt32 seed, int pellet, Float spread);
 Float PickupRespawnTime(PickupKind kind);
 const Char *PickupName(PickupKind kind);
 } // namespace evo

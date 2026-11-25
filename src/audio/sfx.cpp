@@ -26,6 +26,8 @@ const SoundInfo SOUND_INFO[static_cast<size_t>(Sound::COUNT)] = {
     {"pickup_health", 2}, {"pickup_armor", 2},  {"pickup_weapon", 2}, {"pickup_ammo", 2},
     {"hit", 4},           {"hurt", 3},          {"death", 4},        {"frag", 2},
     {"spawn", 3},         {"match_end", 1},     {"empty", 2},        {"switch", 2},
+    {"scatter", 4},       {"frag_fire", 4},     {"ripper", 6},       {"bounce", 6},
+    {"throw", 3},         {"mine_arm", 4},      {"ricochet", 6},
 };
 
 audio::AudioManager *GetAudio()

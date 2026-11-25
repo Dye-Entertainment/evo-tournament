@@ -29,16 +29,22 @@ std::string Hex(const FVec3 &color)
     return buffer;
 }
 
-const Char *ShortWeaponName(const WeaponId weapon)
+const Char *CrosshairName(const WeaponId weapon)
 {
     switch (weapon)
     {
     case WeaponId::NOVA:
-        return "NOVA";
+        return "nova";
     case WeaponId::RAIL:
-        return "RAIL";
+        return "rail";
+    case WeaponId::SCATTER:
+        return "scatter";
+    case WeaponId::FRAG:
+        return "frag";
+    case WeaponId::RIPPER:
+        return "ripper";
     default:
-        return "PULSE";
+        return "rifle";
     }
 }
 
@@ -309,7 +315,7 @@ void GameScene::FillHud()
 
     if (s.alive)
     {
-        s.crosshair = player->weapon == WeaponId::RAIL ? "rail" : player->weapon == WeaponId::NOVA ? "nova" : "rifle";
+        s.crosshair = CrosshairName(player->weapon);
         s.hit = math::Clamp(hitMarker / 0.22f, 0.0f, 1.0f);
         s.health = std::max<int>(player->health, 0);
         s.armor = player->armor;
@@ -327,10 +333,15 @@ void GameScene::FillHud()
             const auto id = static_cast<WeaponId>(w);
             slot.owned = player->hasWeapon[w];
             slot.selected = w == weapon;
-            slot.label = std::to_string(w + 1) + " " + ShortWeaponName(id);
+            slot.label = std::to_string(w + 1) + " " + DamageSourceName(SourceOf(id));
+            // Two rows of three, the first row on top.
+            slot.x = (w % 3) * 78;
+            slot.y = (w / 3) * 40;
             slot.color = slot.owned ? Hex(GetWeaponDef(id).color) : "#6e6e78";
             slot.ammo = slot.owned ? std::to_string(player->ammo[w]) : "-";
         }
+        s.grenades = player->grenades;
+        s.mines = player->mines;
     }
 
     const int seconds = static_cast<int>(std::ceil(world.match.timeRemaining));
@@ -387,7 +398,7 @@ void GameScene::FillHud()
         item.killerColor = Hex(entry.killerColor);
         item.victim = entry.victimName;
         item.victimColor = Hex(entry.victimColor);
-        item.weapon = std::string("  [") + ShortWeaponName(entry.weapon) + (entry.headshot ? " HS" : "") + "]  ";
+        item.weapon = std::string("  [") + DamageSourceName(entry.weapon) + (entry.headshot ? " HS" : "") + "]  ";
         s.feed.push_back(item);
     }
 

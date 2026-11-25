@@ -69,6 +69,8 @@ Bool EvoUi::Initialize(const std::string &ui_dir)
         s.RegisterMember("color", &UiWeaponSlot::color);
         s.RegisterMember("owned", &UiWeaponSlot::owned);
         s.RegisterMember("selected", &UiWeaponSlot::selected);
+        s.RegisterMember("x", &UiWeaponSlot::x);
+        s.RegisterMember("y", &UiWeaponSlot::y);
     }
     if (auto s = c.RegisterStruct<UiNotice>())
     {
@@ -139,6 +141,8 @@ Bool EvoUi::Initialize(const std::string &ui_dir)
     display("weaponColor", &s.weaponColor);
     display("ammo", &s.ammo);
     display("slots", &s.slots);
+    display("grenades", &s.grenades);
+    display("mines", &s.mines);
     display("respawn", &s.respawn);
     display("respawnAlpha", &s.respawnAlpha);
     display("timer", &s.timer);

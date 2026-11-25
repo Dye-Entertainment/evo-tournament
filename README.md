@@ -20,13 +20,15 @@ multi-level arenas. It runs natively on Linux and in the browser.
 | Jump, double jump | Space (press again in the air) |
 | Dodge | Double-tap a direction, or Shift |
 | Wall run | Jump alongside a wall while holding forward; Space kicks off it |
-| Weapons | 1 2 3, mouse wheel, Q for the last weapon |
+| Weapons | 1–6, mouse wheel, Q for the last weapon |
+| Throw grenade | G or right click |
+| Place proximity mine | F |
 | Scoreboard | Tab |
 | Menu | Esc (in the browser, Esc releases the mouse and opens the menu) |
 
 On phones and tablets the browser version shows touch controls: drag on the left side to move
 (flick the stick twice for a dodge), swipe on the right side to aim, and use the FIRE, JUMP,
-DODGE, 1 2 3, SCORES and pause buttons. Tap **PLAY** (or the arena) to start; aim speed follows
+DODGE, GREN, MINE, weapon 1–6, SCORES and pause buttons. Tap **PLAY** (or the arena) to start; aim speed follows
 the *Mouse sensitivity* option. Joining by typing a code needs a keyboard, but invite links
 (`?join=CODE`) work. Add `?touch=1` or `?touch=0` to the address to force the touch controls on
 or off.
@@ -37,6 +39,18 @@ or off.
 - **Nova Launcher**: slow plasma orbs with splash damage and knockback. Useful for
   rocket-jumping (you take reduced self-damage).
 - **Rail Lance**: a slow-firing, hard-hitting beam. Headshots deal 1.75× damage.
+- **Scattergun**: twelve hitscan pellets per shot. Devastating up close, useless at range.
+  A point-blank kill blows the target apart.
+- **Frag Launcher**: lobs bouncing shells that burst on a direct hit or after two seconds.
+  Good for clearing corners and hitting players below you.
+- **Ripper**: fast saw discs that ricochet off walls up to three times. A disc that has
+  bounced can hit you too.
+- **Grenades** (G or right click): you spawn with two and can carry four. They bounce, roll
+  and burst after about 2.4 seconds, blinking faster as the fuse runs down.
+- **Proximity mines** (F): you spawn with one and can carry three. A mine sticks to whatever
+  it lands on, arms after a second, and goes off when an enemy comes within two metres. Your
+  own mines show a green light, everyone else's red. Each player can have three mines out at
+  once; placing a fourth removes the oldest. Explosions set off nearby grenades and mines.
 - Health, Mega Health, Armor and ammo packs respawn on timers. Controlling them is half the
   game.
 

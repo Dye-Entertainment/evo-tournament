@@ -35,6 +35,25 @@
                 <div class="ring"></div>
                 <div class="dot"></div>
             </div>
+            <div data-if="crosshair == 'scatter'">
+                <div class="ring wide"></div>
+                <div class="h" style="left: -26dp; width: 6dp;"></div>
+                <div class="h" style="left: 20dp; width: 6dp;"></div>
+                <div class="dot"></div>
+            </div>
+            <div data-if="crosshair == 'frag'">
+                <div class="h" style="left: -12dp; width: 24dp;"></div>
+                <div class="h" style="left: -8dp; width: 16dp; top: 8dp;"></div>
+                <div class="h" style="left: -4dp; width: 8dp; top: 16dp;"></div>
+                <div class="v" style="top: -10dp; height: 6dp;"></div>
+            </div>
+            <div data-if="crosshair == 'ripper'">
+                <div class="h" style="left: -16dp; width: 10dp;"></div>
+                <div class="h" style="left: 6dp; width: 10dp;"></div>
+                <div class="v" style="top: -8dp; height: 5dp;"></div>
+                <div class="v" style="top: 3dp; height: 5dp;"></div>
+                <div class="dot"></div>
+            </div>
             <div data-if="hit > 0" data-style-opacity="hit">
                 <div class="hit" style="left: 11dp; top: 11dp; transform: rotate(45deg);"></div>
                 <div class="hit" style="left: -11dp; top: -11dp; transform: rotate(45deg);"></div>
@@ -52,10 +71,16 @@
 
         <div id="slots">
             <div data-for="s, i : slots" class="slot" data-class-selected="s.selected" data-class-missing="!s.owned"
-                 data-style-left="(i * 78) + 'dp'">
+                 data-style-left="s.x + 'dp'" data-style-top="s.y + 'dp'">
                 <div class="label" data-style-color="s.color">{{ s.label }}</div>
                 <div class="count">{{ s.ammo }}</div>
             </div>
+        </div>
+        <div id="gear" class="box">
+            <div class="row"><div class="key">G</div><div class="grenade"></div><div class="name">GRENADES</div>
+                <div class="count" data-class-empty="grenades <= 0">{{ grenades }}</div></div>
+            <div class="row second"><div class="key">F</div><div class="mine"></div><div class="name">MINES</div>
+                <div class="count" data-class-empty="mines <= 0">{{ mines }}</div></div>
         </div>
         <div id="ammo" class="box">
             <div class="name" data-style-color="weaponColor">{{ weaponName }}</div>

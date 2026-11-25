@@ -33,6 +33,33 @@ std::vector<Part> WeaponParts(const WeaponId weapon)
             {{-0.08f, 0.03f, -0.05f}, {0.04f, 0.07f, 0.22f}, color * 0.7f, 0.6f, MeshShape::CUBE},
             {{0.0f, -0.09f, -0.08f}, {0.05f, 0.11f, 0.07f}, DARK, 0.0f, MeshShape::CUBE},
         };
+    case WeaponId::SCATTER:
+        return {
+            {{0.0f, 0.0f, -0.04f}, {0.12f, 0.1f, 0.3f}, {0.30f, 0.22f, 0.14f}, 0.0f, MeshShape::CUBE},
+            {{0.032f, 0.02f, 0.2f}, {0.045f, 0.045f, 0.42f}, GUNMETAL, 0.0f, MeshShape::CUBE},
+            {{-0.032f, 0.02f, 0.2f}, {0.045f, 0.045f, 0.42f}, GUNMETAL, 0.0f, MeshShape::CUBE},
+            {{0.0f, -0.035f, 0.17f}, {0.09f, 0.055f, 0.15f}, color * 0.8f, 0.5f, MeshShape::CUBE},
+            {{0.0f, 0.058f, -0.02f}, {0.02f, 0.012f, 0.26f}, color, 1.0f, MeshShape::CUBE},
+            {{0.0f, -0.09f, -0.12f}, {0.05f, 0.11f, 0.07f}, DARK, 0.0f, MeshShape::CUBE},
+        };
+    case WeaponId::FRAG:
+        return {
+            {{0.0f, 0.0f, -0.05f}, {0.1f, 0.1f, 0.3f}, {0.18f, 0.24f, 0.16f}, 0.0f, MeshShape::CUBE},
+            {{0.0f, -0.035f, 0.02f}, {0.19f, 0.19f, 0.13f}, {0.22f, 0.3f, 0.2f}, 0.0f, MeshShape::SPHERE},
+            {{0.0f, -0.035f, 0.02f}, {0.2f, 0.05f, 0.05f}, color, 1.0f, MeshShape::CUBE},
+            {{0.0f, 0.02f, 0.2f}, {0.1f, 0.1f, 0.26f}, DARK, 0.0f, MeshShape::CUBE},
+            {{0.0f, 0.02f, 0.335f}, {0.11f, 0.11f, 0.02f}, color, 1.0f, MeshShape::CUBE},
+            {{0.0f, -0.1f, -0.14f}, {0.05f, 0.11f, 0.07f}, DARK, 0.0f, MeshShape::CUBE},
+        };
+    case WeaponId::RIPPER:
+        return {
+            {{0.0f, 0.0f, -0.04f}, {0.08f, 0.08f, 0.36f}, {0.26f, 0.16f, 0.2f}, 0.0f, MeshShape::CUBE},
+            {{0.0f, 0.03f, 0.2f}, {0.24f, 0.03f, 0.24f}, color, 1.0f, MeshShape::SPHERE},
+            {{0.0f, 0.03f, 0.2f}, {0.09f, 0.04f, 0.09f}, {1.0f, 0.85f, 0.9f}, 1.0f, MeshShape::SPHERE},
+            {{0.06f, 0.0f, 0.12f}, {0.025f, 0.05f, 0.2f}, GUNMETAL, 0.0f, MeshShape::CUBE},
+            {{-0.06f, 0.0f, 0.12f}, {0.025f, 0.05f, 0.2f}, GUNMETAL, 0.0f, MeshShape::CUBE},
+            {{0.0f, -0.09f, -0.12f}, {0.05f, 0.11f, 0.07f}, DARK, 0.0f, MeshShape::CUBE},
+        };
     case WeaponId::RAIL:
         return {
             {{0.0f, 0.0f, -0.02f}, {0.06f, 0.08f, 0.56f}, {0.22f, 0.17f, 0.28f}, 0.0f, MeshShape::CUBE},
@@ -64,6 +91,11 @@ Float MuzzleDistance(const WeaponId weapon)
         return 0.3f;
     case WeaponId::RAIL:
         return 0.36f;
+    case WeaponId::SCATTER:
+    case WeaponId::FRAG:
+        return 0.42f;
+    case WeaponId::RIPPER:
+        return 0.32f;
     default:
         return 0.4f;
     }
@@ -253,6 +285,29 @@ void GameScene::DrawPickups()
         case PickupKind::WEAPON_RAIL:
             DrawWeaponModel(WeaponId::RAIL, center, spin, 0.0f, 2.0f);
             break;
+        case PickupKind::WEAPON_SCATTER:
+            DrawWeaponModel(WeaponId::SCATTER, center, spin, 0.0f, 2.0f);
+            break;
+        case PickupKind::WEAPON_FRAG:
+            DrawWeaponModel(WeaponId::FRAG, center, spin, 0.0f, 2.0f);
+            break;
+        case PickupKind::WEAPON_RIPPER:
+            DrawWeaponModel(WeaponId::RIPPER, center, spin, 0.0f, 2.2f);
+            break;
+        case PickupKind::GRENADES:
+            for (int i = 0; i < 2; ++i)
+            {
+                const FVec3 offset = ForwardXZ(spin + static_cast<Float>(i) * math::PI) * 0.17f;
+                DrawGrenade(center + offset, spin, color, 0.0f);
+            }
+            break;
+        case PickupKind::MINES:
+            for (int i = 0; i < 2; ++i)
+            {
+                DrawMine(center + FVec3{0.0f, static_cast<Float>(i) * 0.16f - 0.08f, 0.0f}, spin, color,
+                         0.5f + 0.5f * std::sin(realTime * 6.0f + static_cast<Float>(i)));
+            }
+            break;
         default:
             for (int i = 0; i < 3; ++i)
             {
@@ -303,15 +358,102 @@ void GameScene::DrawJumpPads()
     }
 }
 
+void GameScene::DrawGrenade(const FVec3 &center, const Float spin, const FVec3 &light, const Float blink)
+{
+    const FVec3 body{0.24f, 0.27f, 0.2f};
+    renderer.DrawShape(MeshShape::SPHERE, center, {0.24f, 0.28f, 0.24f}, body, 0.0f, spin, 0.0f, 0.0f,
+                       SurfaceStyle{0.6f, 1.0f});
+    renderer.DrawShape(MeshShape::CUBE, center, {0.255f, 0.04f, 0.255f}, light * 0.6f, 0.6f, spin);
+    renderer.DrawShape(MeshShape::CUBE, center + FVec3{0.0f, 0.15f, 0.0f}, {0.08f, 0.06f, 0.08f}, DARK, 0.0f, spin);
+    if (blink > 0.0f)
+    {
+        renderer.DrawShape(MeshShape::SPHERE, center + FVec3{0.0f, 0.19f, 0.0f}, {0.06f, 0.06f, 0.06f}, light, 1.0f);
+        renderer.DrawGlow(center + FVec3{0.0f, 0.19f, 0.0f}, 0.55f, light, 0.3f * blink);
+    }
+}
+
+void GameScene::DrawMine(const FVec3 &center, const Float spin, const FVec3 &light, const Float blink)
+{
+    renderer.DrawShape(MeshShape::SPHERE, center, {0.5f, 0.14f, 0.5f}, {0.16f, 0.16f, 0.18f}, 0.0f, spin, 0.0f,
+                       0.0f, SurfaceStyle{0.7f, 1.0f});
+    renderer.DrawShape(MeshShape::CUBE, center + FVec3{0.0f, 0.04f, 0.0f}, {0.42f, 0.05f, 0.08f},
+                       {0.3f, 0.3f, 0.32f}, 0.0f, spin);
+    renderer.DrawShape(MeshShape::CUBE, center + FVec3{0.0f, 0.04f, 0.0f}, {0.08f, 0.05f, 0.42f},
+                       {0.3f, 0.3f, 0.32f}, 0.0f, spin);
+    renderer.DrawShape(MeshShape::SPHERE, center + FVec3{0.0f, 0.07f, 0.0f}, {0.1f, 0.06f, 0.1f},
+                       light * (0.25f + 0.75f * blink), 1.0f);
+    if (blink > 0.0f)
+    {
+        renderer.DrawGlow(center + FVec3{0.0f, 0.1f, 0.0f}, 0.8f, light, 0.4f * blink);
+    }
+}
+
 void GameScene::DrawProjectiles()
 {
-    const FVec3 color = GetWeaponDef(WeaponId::NOVA).color;
     for (const Projectile &projectile : world.projectiles)
     {
-        const Float pulse = 0.55f + 0.08f * std::sin(realTime * 30.0f + static_cast<Float>(projectile.id));
-        renderer.DrawShape(MeshShape::SPHERE, projectile.position, {pulse, pulse, pulse}, color, 1.0f);
-        renderer.DrawShape(MeshShape::SPHERE, projectile.position, {0.3f, 0.3f, 0.3f}, {1.0f, 0.95f, 0.8f}, 1.0f);
-        renderer.DrawGlow(projectile.position, 1.8f, color, 0.45f);
+        const FVec3 &p = projectile.position;
+        const Float seed = static_cast<Float>(projectile.id);
+        switch (projectile.kind)
+        {
+        case ProjectileKind::FRAG:
+        {
+            const FVec3 color = GetWeaponDef(WeaponId::FRAG).color;
+            const Float blink = std::sin(realTime * 26.0f + seed) > 0.0f ? 1.0f : 0.3f;
+            renderer.DrawShape(MeshShape::SPHERE, p, {0.24f, 0.24f, 0.24f}, {0.18f, 0.24f, 0.16f}, 0.0f);
+            renderer.DrawShape(MeshShape::SPHERE, p, {0.27f, 0.08f, 0.27f}, color, 1.0f, realTime * 8.0f);
+            renderer.DrawGlow(p, 1.1f, color, 0.3f * blink);
+            break;
+        }
+        case ProjectileKind::GRENADE:
+        {
+            // Blinks faster as the fuse burns down.
+            const Float rate = 4.0f + projectile.age * 9.0f;
+            const Float blink = std::sin(projectile.age * rate) > 0.2f ? 1.0f : 0.0f;
+            const Float tumble = projectile.resting ? 0.0f : projectile.age * 9.0f;
+            DrawGrenade(p, tumble + seed, DamageSourceColor(DamageSource::GRENADE), blink);
+            break;
+        }
+        case ProjectileKind::MINE:
+        {
+            // Your own mines show green; everyone else's are red once armed.
+            const Bool own = IsLocal(projectile.owner);
+            FVec3 light{1.0f, 0.8f, 0.2f};
+            Float blink = 0.6f;
+            if (projectile.armed)
+            {
+                light = own ? FVec3{0.3f, 1.0f, 0.35f} : DamageSourceColor(DamageSource::MINE);
+                blink = std::fmod(projectile.age + seed * 0.37f, 1.1f) < 0.18f ? 1.0f : 0.0f;
+            }
+            DrawMine(p, seed, light, blink);
+            break;
+        }
+        case ProjectileKind::DISC:
+        {
+            const FVec3 color = GetWeaponDef(WeaponId::RIPPER).color;
+            Float yaw = 0.0f;
+            Float pitch = 0.0f;
+            if (math::GetLength(projectile.velocity) > 0.1f)
+            {
+                math::GetYawPitchFromDirection(projectile.velocity, yaw, pitch);
+            }
+            const Float spin = realTime * 40.0f;
+            renderer.DrawShape(MeshShape::SPHERE, p, {0.5f, 0.05f, 0.5f}, color, 1.0f, yaw + spin, 0.0f);
+            renderer.DrawShape(MeshShape::SPHERE, p, {0.2f, 0.07f, 0.2f}, {1.0f, 0.9f, 0.95f}, 1.0f);
+            renderer.DrawGlow(p, 1.2f, color, 0.4f);
+            static_cast<void>(pitch);
+            break;
+        }
+        default:
+        {
+            const FVec3 color = GetWeaponDef(WeaponId::NOVA).color;
+            const Float pulse = 0.55f + 0.08f * std::sin(realTime * 30.0f + seed);
+            renderer.DrawShape(MeshShape::SPHERE, p, {pulse, pulse, pulse}, color, 1.0f);
+            renderer.DrawShape(MeshShape::SPHERE, p, {0.3f, 0.3f, 0.3f}, {1.0f, 0.95f, 0.8f}, 1.0f);
+            renderer.DrawGlow(p, 1.8f, color, 0.45f);
+            break;
+        }
+        }
     }
 }
 
@@ -321,7 +463,19 @@ void GameScene::DrawWorld()
     effects.AddLights(renderer);
     for (const Projectile &projectile : world.projectiles)
     {
-        renderer.AddLight(DynamicLight{projectile.position, GetWeaponDef(WeaponId::NOVA).color * 1.3f, 7.0f});
+        // Only glowing shots light the arena; grenades and mines lying around don't.
+        if (projectile.kind == ProjectileKind::NOVA)
+        {
+            renderer.AddLight(DynamicLight{projectile.position, GetWeaponDef(WeaponId::NOVA).color * 1.3f, 7.0f});
+        }
+        else if (projectile.kind == ProjectileKind::FRAG)
+        {
+            renderer.AddLight(DynamicLight{projectile.position, GetWeaponDef(WeaponId::FRAG).color * 0.8f, 4.0f});
+        }
+        else if (projectile.kind == ProjectileKind::DISC)
+        {
+            renderer.AddLight(DynamicLight{projectile.position, GetWeaponDef(WeaponId::RIPPER).color, 4.5f});
+        }
     }
     for (int i = 0; i < MAX_PLAYERS; ++i)
     {

@@ -18,6 +18,14 @@ enum class PickupKind : UInt8
     AMMO_RIFLE,
     AMMO_NOVA,
     AMMO_RAIL,
+    WEAPON_SCATTER,
+    WEAPON_FRAG,
+    WEAPON_RIPPER,
+    AMMO_SCATTER,
+    AMMO_FRAG,
+    AMMO_RIPPER,
+    GRENADES,
+    MINES,
     COUNT
 };
 

@@ -38,6 +38,29 @@ int ValidateWaypoints(const Arena &arena)
             }
         }
     }
+    if (arena.pickupSpots.size() > 64)
+    {
+        std::printf("%zu pickups, the snapshot holds at most 64\n", arena.pickupSpots.size());
+        ++failures;
+    }
+    for (const PickupSpot &spot : arena.pickupSpots)
+    {
+        // Must stand on a floor, not inside a wall, and a bot must be able to see it from a waypoint.
+        const FVec3 p = spot.position;
+        RayHit floor;
+        const Bool supported = arena.RayCast(p + FVec3{0.0f, 0.5f, 0.0f}, {0.0f, -1.0f, 0.0f}, 0.8f, floor);
+        const Bool blocked = arena.IsBlocked(PlayerBounds(p + FVec3{0.0f, 0.01f, 0.0f}));
+        const int nearest = arena.FindNearestWaypoint(p + FVec3{0.0f, 0.1f, 0.0f}, true);
+        const Bool reachable =
+            nearest >= 0 && math::GetLength(arena.waypoints[nearest].position - p) < 14.0f;
+        if (!supported || blocked || !reachable)
+        {
+            std::printf("pickup %s at %.1f %.1f %.1f:%s%s%s\n", PickupName(spot.kind), p.x, p.y, p.z,
+                        supported ? "" : " floating", blocked ? " inside geometry" : "",
+                        reachable ? "" : " far from waypoints");
+            ++failures;
+        }
+    }
     for (const SpawnPoint &spawn : arena.spawnPoints)
     {
         if (arena.IsBlocked(PlayerBounds(spawn.position + FVec3{0.0f, 0.01f, 0.0f})))
@@ -195,6 +218,11 @@ int SimulateArena(const ArenaId arena_id)
     int pickups = 0;
     int explosions = 0;
     int shots = 0;
+    int throws = 0;
+    int mines = 0;
+    int armed = 0;
+    int max_projectiles = 0;
+    std::array<int, static_cast<int>(DamageSource::COUNT)> kills_by{};
     int ring_samples = 0;
     int altar_samples = 0;
     int samples = 0;
@@ -210,6 +238,24 @@ int SimulateArena(const ArenaId arena_id)
             pickups += event.type == EventType::PICKUP ? 1 : 0;
             explosions += event.type == EventType::EXPLOSION ? 1 : 0;
             shots += event.type == EventType::SHOT ? 1 : 0;
+            throws += event.type == EventType::THROW && event.b == 0 ? 1 : 0;
+            mines += event.type == EventType::THROW && event.b == 1 ? 1 : 0;
+            armed += event.type == EventType::MINE_ARMED ? 1 : 0;
+            if (event.type == EventType::KILL)
+            {
+                ++kills_by[(event.c & 0x7F) % static_cast<int>(DamageSource::COUNT)];
+            }
+        }
+        max_projectiles = std::max(max_projectiles, static_cast<int>(world.projectiles.size()));
+        for (const Projectile &projectile : world.projectiles)
+        {
+            if (std::isnan(projectile.position.x) || std::isnan(projectile.position.y) ||
+                std::isnan(projectile.position.z))
+            {
+                std::printf("NaN projectile position\n");
+                ++failures;
+                break;
+            }
         }
         if (frame % 60 != 0)
         {
@@ -257,6 +303,18 @@ int SimulateArena(const ArenaId arena_id)
 
     std::printf("simulated %d s with %d bots\n", SECONDS, settings.botCount);
     std::printf("shots %d explosions %d kills %d pickups %d\n", shots, explosions, kills, pickups);
+    std::printf("grenades %d mines %d armed %d most projectiles %d\n", throws, mines, armed, max_projectiles);
+    std::printf("kills by");
+    for (int source = 0; source < static_cast<int>(DamageSource::COUNT); ++source)
+    {
+        std::printf(" %s %d", DamageSourceName(static_cast<DamageSource>(source)), kills_by[source]);
+    }
+    std::printf("\n");
+    if (throws == 0 || mines == 0 || armed == 0)
+    {
+        std::printf("bots never used grenades or mines\n");
+        ++failures;
+    }
     std::printf("time high %.1f%% in the middle %.1f%% longest idle %d s\n",
                 100.0f * static_cast<Float>(ring_samples) / static_cast<Float>(std::max(samples, 1)),
                 100.0f * static_cast<Float>(altar_samples) / static_cast<Float>(std::max(samples, 1)),
@@ -336,6 +394,7 @@ int RunNetTest()
     constexpr Float STEP = 1.0f / 60.0f;
     int client_events = 0;
     int remote_shots = 0;
+    int remote_throws = 0;
     int fired = 0;
     FVec3 start_position;
     for (int frame = 0; frame < 60 * 6; ++frame)
@@ -347,6 +406,10 @@ int RunNetTest()
             if (event.type == EventType::SHOT && client.localPlayer >= 0 && event.a == client.localPlayer)
             {
                 ++remote_shots;
+            }
+            if (event.type == EventType::THROW && client.localPlayer >= 0 && event.a == client.localPlayer)
+            {
+                ++remote_throws;
             }
         }
         client.Update(client_world, STEP);
@@ -371,9 +434,13 @@ int RunNetTest()
             {
                 client.SendFire(
                     WeaponId::RIFLE, EyePosition(me.move),
-                    math::GetDirectionFromYawPitch(me.yaw, 0.0f)
+                    math::GetDirectionFromYawPitch(me.yaw, 0.0f), 0
                 );
                 ++fired;
+            }
+            if (frame == 200 && me.alive)
+            {
+                client.SendThrow(false, EyePosition(me.move), math::GetDirectionFromYawPitch(me.yaw, 0.3f));
             }
         }
     }
@@ -406,7 +473,10 @@ int RunNetTest()
     {
         ++failures;
     }
-    if (client_events == 0 || remote_shots == 0)
+    std::printf("host saw %d grenade(s) from the client, client has %d left\n", remote_throws,
+                client_world.players[remote_id].grenades);
+    if (client_events == 0 || remote_shots == 0 || remote_throws != 1 ||
+        client_world.players[remote_id].grenades != host_world.players[remote_id].grenades)
     {
         ++failures;
     }

@@ -326,6 +326,22 @@ void Arena::BuildBastion()
         {PickupKind::AMMO_NOVA, {-32, 0, -24}},
         {PickupKind::AMMO_RAIL, {40, DECK_HEIGHT, 42}},
         {PickupKind::AMMO_RAIL, {-40, DECK_HEIGHT, -42}},
+        {PickupKind::WEAPON_SCATTER, {30, 0, 22}},
+        {PickupKind::WEAPON_SCATTER, {-30, 0, -22}},
+        {PickupKind::WEAPON_FRAG, {-30, 0, 22}},
+        {PickupKind::WEAPON_FRAG, {30, 0, -22}},
+        {PickupKind::WEAPON_RIPPER, {24, DECK_HEIGHT, 42}},
+        {PickupKind::WEAPON_RIPPER, {-24, DECK_HEIGHT, -42}},
+        {PickupKind::GRENADES, {12, 0, 13}},
+        {PickupKind::GRENADES, {-12, 0, -13}},
+        {PickupKind::MINES, {-12, 0, 13}},
+        {PickupKind::MINES, {12, 0, -13}},
+        {PickupKind::AMMO_SCATTER, {0, 0, 30}},
+        {PickupKind::AMMO_SCATTER, {0, 0, -30}},
+        {PickupKind::AMMO_FRAG, {29, 0, 0}},
+        {PickupKind::AMMO_FRAG, {-29, 0, 0}},
+        {PickupKind::AMMO_RIPPER, {41, DECK_HEIGHT, 41}},
+        {PickupKind::AMMO_RIPPER, {-41, DECK_HEIGHT, -41}},
     };
 
     // Bot navigation graph.

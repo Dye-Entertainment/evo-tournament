@@ -38,6 +38,11 @@ enum KeySlot
     KEY_1,
     KEY_2,
     KEY_3,
+    KEY_4,
+    KEY_5,
+    KEY_6,
+    KEY_G,
+    KEY_F,
     KEY_Q,
     KEY_TAB,
     KEY_ESCAPE,
@@ -52,7 +57,8 @@ const input::KeyboardKey KEY_MAP[KEY_COUNT] = {
     input::KeyboardKey::W,     input::KeyboardKey::A,      input::KeyboardKey::S,
     input::KeyboardKey::D,     input::KeyboardKey::Space,  input::KeyboardKey::LShift,
     input::KeyboardKey::Num1,  input::KeyboardKey::Num2,   input::KeyboardKey::Num3,
-    input::KeyboardKey::Q,     input::KeyboardKey::Tab,    input::KeyboardKey::Escape,
+    input::KeyboardKey::Num4,  input::KeyboardKey::Num5,   input::KeyboardKey::Num6,
+    input::KeyboardKey::G,     input::KeyboardKey::F,      input::KeyboardKey::Q,     input::KeyboardKey::Tab,    input::KeyboardKey::Escape,
     input::KeyboardKey::Up,    input::KeyboardKey::Down,   input::KeyboardKey::Left,
     input::KeyboardKey::Right,
 };
@@ -76,6 +82,9 @@ Sound PickupSound(const PickupKind kind)
         return Sound::PICKUP_ARMOR;
     case PickupKind::WEAPON_NOVA:
     case PickupKind::WEAPON_RAIL:
+    case PickupKind::WEAPON_SCATTER:
+    case PickupKind::WEAPON_FRAG:
+    case PickupKind::WEAPON_RIPPER:
         return Sound::PICKUP_WEAPON;
     default:
         return Sound::PICKUP_AMMO;
@@ -100,6 +109,19 @@ FVec3 PickupColor(const PickupKind kind)
     case PickupKind::WEAPON_RAIL:
     case PickupKind::AMMO_RAIL:
         return GetWeaponDef(WeaponId::RAIL).color;
+    case PickupKind::WEAPON_SCATTER:
+    case PickupKind::AMMO_SCATTER:
+        return GetWeaponDef(WeaponId::SCATTER).color;
+    case PickupKind::WEAPON_FRAG:
+    case PickupKind::AMMO_FRAG:
+        return GetWeaponDef(WeaponId::FRAG).color;
+    case PickupKind::WEAPON_RIPPER:
+    case PickupKind::AMMO_RIPPER:
+        return GetWeaponDef(WeaponId::RIPPER).color;
+    case PickupKind::GRENADES:
+        return DamageSourceColor(DamageSource::GRENADE);
+    case PickupKind::MINES:
+        return DamageSourceColor(DamageSource::MINE);
     default:
         return GetWeaponDef(WeaponId::RIFLE).color;
     }
@@ -206,9 +228,11 @@ InputFrame GameScene::ReadInput(const Float delta_seconds)
     const auto pressed = [&](const int slot) { return keys[slot] && !previousKeys[slot]; };
 
     Bool fire = false;
+    Bool alt_fire = false;
     if (auto mouse = input::Manager::GetInstance()->GetMouse(0); mouse.has_value())
     {
         fire = input::isButtonDown(*mouse.value(), input::MouseButton::Left);
+        alt_fire = input::isButtonDown(*mouse.value(), input::MouseButton::Right);
     }
 
     Float dx = 0.0f;
@@ -225,18 +249,18 @@ InputFrame GameScene::ReadInput(const Float delta_seconds)
     frame.scoreboard = keys[KEY_TAB];
     frame.escape = pressed(KEY_ESCAPE);
     frame.lastWeapon = pressed(KEY_Q);
-    if (pressed(KEY_1))
+    const int weapon_keys[] = {KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6};
+    static_assert(sizeof(weapon_keys) / sizeof(weapon_keys[0]) == WEAPON_COUNT);
+    for (int w = 0; w < WEAPON_COUNT; ++w)
     {
-        frame.selectWeapon = 0;
+        if (pressed(weapon_keys[w]))
+        {
+            frame.selectWeapon = w;
+            break;
+        }
     }
-    else if (pressed(KEY_2))
-    {
-        frame.selectWeapon = 1;
-    }
-    else if (pressed(KEY_3))
-    {
-        frame.selectWeapon = 2;
-    }
+    frame.throwGrenade = pressed(KEY_G) || (alt_fire && !previousAltFire);
+    frame.placeMine = pressed(KEY_F) && !frame.throwGrenade;
     if (wheel >= 1.0f || wheel <= -1.0f)
     {
         frame.cycleWeapon = wheel > 0.0f ? -1 : 1;
@@ -279,6 +303,7 @@ InputFrame GameScene::ReadInput(const Float delta_seconds)
         previousKeys[i] = keys[i];
     }
     previousFire = fire;
+    previousAltFire = alt_fire;
     static_cast<void>(delta_seconds);
     return frame;
 }
@@ -570,7 +595,8 @@ Bool GameScene::AutoSwitchIfEmpty(Player &player)
     {
         return false;
     }
-    const WeaponId order[] = {WeaponId::RAIL, WeaponId::NOVA, WeaponId::RIFLE};
+    const WeaponId order[] = {WeaponId::RAIL,  WeaponId::FRAG,    WeaponId::SCATTER,
+                              WeaponId::NOVA,  WeaponId::RIPPER,  WeaponId::RIFLE};
     for (const WeaponId weapon : order)
     {
         const int index = static_cast<int>(weapon);
@@ -637,14 +663,19 @@ void GameScene::UpdateLocalPlayerHost(const Float delta_seconds, const InputFram
             move.jump = input.jump;
             move.dodge = input.dodge;
             move.allowWallRun = true;
+            fire.origin = EyePosition(player.move);
+            fire.direction = math::GetDirectionFromYawPitch(player.yaw, player.pitch);
+            fire.throwDirection = fire.direction;
+            fire.throwGrenade = input.throwGrenade;
+            fire.placeMine = input.placeMine;
             if (input.fireHeld && fireArmed)
             {
                 fire.fire = true;
-                fire.origin = EyePosition(player.move);
-                fire.direction = world.ApplySpread(
-                    player, math::GetDirectionFromYawPitch(player.yaw, player.pitch),
-                    world.random.Next()
-                );
+                fire.direction = world.ApplySpread(player, fire.direction, world.random.Next());
+            }
+            if ((input.throwGrenade && player.grenades <= 0) || (input.placeMine && player.mines <= 0))
+            {
+                sfx.Play(Sound::EMPTY, 0.5f);
             }
         }
         if (!player.alive && input.firePressed && fireArmed && !menuOpen)
@@ -661,7 +692,27 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
     world.localMoveEvents = MoveEvents{};
     for (Projectile &projectile : world.projectiles)
     {
-        projectile.position = projectile.position + projectile.velocity * delta_seconds;
+        // Rough local motion between snapshots; the host corrects it 20 times a second.
+        projectile.age += delta_seconds;
+        if (projectile.resting)
+        {
+            continue;
+        }
+        if (projectile.kind == ProjectileKind::FRAG || projectile.kind == ProjectileKind::GRENADE ||
+            projectile.kind == ProjectileKind::MINE)
+        {
+            projectile.velocity.y -= 18.0f * delta_seconds;
+        }
+        const FVec3 motion = projectile.velocity * delta_seconds;
+        const Float distance = math::GetLength(motion);
+        RayHit hit;
+        if (distance > 0.0f && world.arena.RayCast(projectile.position, motion * (1.0f / distance), distance, hit))
+        {
+            projectile.position = projectile.position + motion * (std::max(0.0f, hit.distance - 0.05f) / distance);
+            projectile.velocity = FVec3{};
+            continue;
+        }
+        projectile.position = projectile.position + motion;
     }
     if (session.localPlayer < 0)
     {
@@ -669,6 +720,7 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
     }
     Player &player = world.players[session.localPlayer];
     player.fireCooldown = std::max(0.0f, player.fireCooldown - delta_seconds);
+    player.throwCooldown = std::max(0.0f, player.throwCooldown - delta_seconds);
     ApplyLook(player, input);
     respawnRequestTimer = std::max(0.0f, respawnRequestTimer - delta_seconds);
     if (!player.alive)
@@ -705,16 +757,39 @@ void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFr
         const FVec3 direction = world.ApplySpread(
             player, math::GetDirectionFromYawPitch(player.yaw, player.pitch), world.random.Next()
         );
-        session.SendFire(player.weapon, origin, direction);
+        const auto seed = static_cast<UInt8>(world.random.Next());
+        session.SendFire(player.weapon, origin, direction, seed);
         const WeaponDef &def = GetWeaponDef(player.weapon);
-        if (def.hitscan)
+        if (def.hitscan && def.pellets <= 1)
         {
             const World::TraceResult trace = world.Trace(origin, direction, 250.0f, session.localPlayer);
-            HandleShot(session.localPlayer, player.weapon, origin, trace.end);
+            HandleShot(session.localPlayer, player.weapon, origin, trace.end, seed);
         }
         else
         {
-            HandleShot(session.localPlayer, player.weapon, origin, origin + direction);
+            HandleShot(session.localPlayer, player.weapon, origin, origin + direction * 10.0f, seed);
+        }
+    }
+    if (!menuOpen && (input.throwGrenade || input.placeMine))
+    {
+        if (world.CanThrow(player, input.placeMine))
+        {
+            // Spend it locally right away so the HUD responds; the next snapshot confirms it.
+            player.throwCooldown = 0.6f;
+            if (input.placeMine)
+            {
+                player.mines = static_cast<Int16>(player.mines - 1);
+            }
+            else
+            {
+                player.grenades = static_cast<Int16>(player.grenades - 1);
+            }
+            session.SendThrow(input.placeMine, EyePosition(player.move),
+                              math::GetDirectionFromYawPitch(player.yaw, player.pitch));
+        }
+        else if (player.throwCooldown <= 0.0f)
+        {
+            sfx.Play(Sound::EMPTY, 0.5f);
         }
     }
 }
@@ -761,7 +836,9 @@ void GameScene::ProcessEvents()
     }
 }
 
-void GameScene::HandleShot(const int shooter, const WeaponId weapon, const FVec3 &origin, const FVec3 &end)
+void GameScene::HandleShot(
+    const int shooter, const WeaponId weapon, const FVec3 &origin, const FVec3 &end, const UInt8 pellet_seed
+)
 {
     const Bool local = IsLocal(shooter);
     const Bool demo = screen != Screen::IN_MATCH;
@@ -769,7 +846,9 @@ void GameScene::HandleShot(const int shooter, const WeaponId weapon, const FVec3
     if (local)
     {
         muzzle = ViewmodelMuzzle();
-        recoil = weapon == WeaponId::RIFLE ? 0.25f : 1.0f;
+        recoil = weapon == WeaponId::RIFLE ? 0.25f : weapon == WeaponId::RIPPER ? 0.45f
+                 : weapon == WeaponId::SCATTER                                ? 1.4f
+                                                                              : 1.0f;
     }
     else if (shooter >= 0 && shooter < MAX_PLAYERS)
     {
@@ -793,6 +872,33 @@ void GameScene::HandleShot(const int shooter, const WeaponId weapon, const FVec3
         effects.AddBeam(muzzle, end, {1.0f, 0.9f, 1.0f}, 0.05f, 0.35f);
         effects.AddSparks(end, math::GetNormalized(origin - end), def.color, 12);
         sound = Sound::RAIL;
+    }
+    else if (weapon == WeaponId::SCATTER)
+    {
+        const FVec3 direction = math::GetNormalized(end - origin);
+        for (int pellet = 0; pellet < def.pellets; ++pellet)
+        {
+            const FVec3 pellet_direction = PelletDirection(direction, pellet_seed, pellet, def.pelletSpread);
+            const World::TraceResult trace = world.Trace(origin, pellet_direction, 250.0f, shooter);
+            effects.AddBeam(muzzle, trace.end, def.color, 0.02f, 0.09f);
+            if (trace.hitPlayer < 0)
+            {
+                effects.AddSparks(trace.end, trace.normal, def.color, 2);
+            }
+        }
+        sound = Sound::SCATTER;
+        if (local)
+        {
+            shake = std::max(shake, 0.18f);
+        }
+    }
+    else if (weapon == WeaponId::FRAG)
+    {
+        sound = Sound::FRAG_FIRE;
+    }
+    else if (weapon == WeaponId::RIPPER)
+    {
+        sound = Sound::RIPPER;
     }
     else
     {
@@ -820,27 +926,87 @@ void GameScene::HandleEvent(const GameEvent &event)
     switch (event.type)
     {
     case EventType::SHOT:
-        HandleShot(event.a, static_cast<WeaponId>(event.c % WEAPON_COUNT), event.p0, event.p1);
+        HandleShot(event.a, static_cast<WeaponId>(event.c % WEAPON_COUNT), event.p0, event.p1, event.b);
         break;
     case EventType::EXPLOSION:
     {
-        effects.AddExplosion(event.p0);
+        const auto kind = static_cast<ProjectileKind>(event.b % static_cast<int>(ProjectileKind::COUNT));
+        const BlastDef &blast = GetBlastDef(kind);
+        const Float scale = blast.radius / GetBlastDef(ProjectileKind::NOVA).radius;
+        FVec3 color{1.0f, 0.55f, 0.15f};
+        if (kind == ProjectileKind::FRAG)
+        {
+            color = {0.6f, 1.0f, 0.3f};
+        }
+        else if (kind == ProjectileKind::MINE)
+        {
+            color = {1.0f, 0.3f, 0.12f};
+        }
+        effects.AddExplosion(event.p0, color, scale);
+        // Burn mark on the floor or wall the blast went off against.
+        const FVec3 probes[] = {{0, -1, 0}, {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 1, 0}};
+        for (const FVec3 &probe : probes)
+        {
+            RayHit hit;
+            if (world.arena.RayCast(event.p0, probe, 1.2f, hit))
+            {
+                effects.AddScorch(event.p0 + probe * hit.distance + hit.normal * 0.02f, hit.normal,
+                                  1.6f * scale);
+                break;
+            }
+        }
         if (!demo)
         {
-            sfx.PlayAt(Sound::EXPLOSION, event.p0, 1.0f);
+            sfx.PlayAt(Sound::EXPLOSION, event.p0, kind == ProjectileKind::MINE ? 1.0f : 0.9f);
             const Float distance = math::GetLength(event.p0 - cameraEye);
-            shake = std::max(shake, math::Clamp(1.0f - distance / 12.0f, 0.0f, 1.0f) * 0.6f);
+            shake = std::max(shake, math::Clamp(1.0f - distance / (12.0f * scale), 0.0f, 1.0f) * 0.6f * scale);
         }
         break;
     }
+    case EventType::THROW:
+        if (!demo)
+        {
+            if (event.a == local && local >= 0)
+            {
+                sfx.Play(Sound::THROW, 0.7f);
+                recoil = std::max(recoil, 0.6f);
+            }
+            else
+            {
+                sfx.PlayAt(Sound::THROW, event.p0, 0.6f);
+            }
+        }
+        break;
+    case EventType::BOUNCE:
+    {
+        const auto kind = static_cast<ProjectileKind>(event.b % static_cast<int>(ProjectileKind::COUNT));
+        if (kind == ProjectileKind::DISC)
+        {
+            effects.AddSparks(event.p0, event.p1, GetWeaponDef(WeaponId::RIPPER).color, event.c != 0 ? 10 : 5);
+        }
+        if (!demo)
+        {
+            sfx.PlayAt(kind == ProjectileKind::DISC ? Sound::RICOCHET : Sound::BOUNCE, event.p0, 0.6f);
+        }
+        break;
+    }
+    case EventType::MINE_ARMED:
+        if (!demo)
+        {
+            sfx.PlayAt(Sound::MINE_ARM, event.p0, event.a == local ? 0.6f : 0.4f);
+        }
+        break;
     case EventType::KILL:
     {
         const int killer = event.a == 255 ? -1 : event.a;
         const int victim = event.b;
-        const auto weapon = static_cast<WeaponId>((event.c & 0x7F) % WEAPON_COUNT);
+        const auto weapon =
+            static_cast<DamageSource>((event.c & 0x7F) % static_cast<int>(DamageSource::COUNT));
         const Bool headshot = (event.c & 0x80) != 0;
         const FVec3 color = victim < MAX_PLAYERS ? PlayerColor(world.players[victim].colorIndex) : FVec3{1, 1, 1};
-        effects.AddGibs(event.p0, event.p1, color, headshot, weapon == WeaponId::NOVA);
+        // A point-blank Scattergun blast tears a player apart like an explosion does.
+        effects.AddGibs(event.p0, event.p1, color, headshot,
+                        IsExplosive(weapon) || weapon == DamageSource::SCATTER);
         if (victim < MAX_PLAYERS)
         {
             world.players[victim].alive = false;
@@ -1011,11 +1177,35 @@ void GameScene::UpdateRenderState(const Float delta_seconds)
     }
     for (const Projectile &projectile : world.projectiles)
     {
-        effects.AddSparks(
-            projectile.position, math::GetNormalized(projectile.velocity) * -1.0f,
-            GetWeaponDef(WeaponId::NOVA).color, 1
-        );
+        // Glowing shots leave a spark trail; grenades and mines only while they fly fast.
+        const Float speed = math::GetLength(projectile.velocity);
+        if (projectile.resting || speed < 0.5f)
+        {
+            continue;
+        }
+        FVec3 color = GetWeaponDef(WeaponId::NOVA).color;
+        switch (projectile.kind)
+        {
+        case ProjectileKind::FRAG:
+            color = GetWeaponDef(WeaponId::FRAG).color;
+            break;
+        case ProjectileKind::DISC:
+            color = GetWeaponDef(WeaponId::RIPPER).color;
+            break;
+        case ProjectileKind::GRENADE:
+        case ProjectileKind::MINE:
+            if (speed < 6.0f || effectsTrailToggle)
+            {
+                continue;
+            }
+            color = {0.55f, 0.5f, 0.45f};
+            break;
+        default:
+            break;
+        }
+        effects.AddSparks(projectile.position, projectile.velocity * (-1.0f / speed), color, 1);
     }
+    effectsTrailToggle = !effectsTrailToggle;
 }
 
 void GameScene::UpdateCamera(const Float delta_seconds)

@@ -44,6 +44,8 @@ struct UiWeaponSlot
     std::string color = "#ffffff";
     Bool owned = false;
     Bool selected = false;
+    Int32 x = 0;
+    Int32 y = 0;
 };
 
 struct UiNotice
@@ -102,7 +104,7 @@ struct UiState
     // HUD
     Float damage = 0.0f;
     Bool alive = false;
-    std::string crosshair; // rifle, nova or rail
+    std::string crosshair; // rifle, nova, rail, scatter, frag or ripper
     Float hit = 0.0f;
     Int32 health = 0;
     Int32 armor = 0;
@@ -112,6 +114,8 @@ struct UiState
     std::string weaponColor = "#ffffff";
     Int32 ammo = 0;
     std::vector<UiWeaponSlot> slots;
+    Int32 grenades = 0;
+    Int32 mines = 0;
     Bool respawn = false;
     Float respawnAlpha = 1.0f;
     std::string timer;

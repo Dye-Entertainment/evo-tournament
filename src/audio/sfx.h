@@ -30,6 +30,13 @@ enum class Sound : UInt8
     MATCH_END,
     EMPTY,
     SWITCH,
+    SCATTER,
+    FRAG_FIRE,
+    RIPPER,
+    BOUNCE,
+    THROW,
+    MINE_ARM,
+    RICOCHET,
     COUNT
 };
 

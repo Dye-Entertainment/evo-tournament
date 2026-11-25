@@ -18,7 +18,10 @@ class Effects final
         gore = enabled;
     }
     void AddBeam(const FVec3 &start, const FVec3 &end, const FVec3 &color, Float width, Float duration);
-    void AddExplosion(const FVec3 &position);
+    // `scale` sizes the blast (1 is a Nova orb); `color` tints the fireball.
+    void AddExplosion(const FVec3 &position, const FVec3 &color = {1.0f, 0.55f, 0.15f}, Float scale = 1.0f);
+    // A burn mark left by an explosion on the surface under it.
+    void AddScorch(const FVec3 &position, const FVec3 &normal, Float size);
     void AddSparks(const FVec3 &position, const FVec3 &normal, const FVec3 &color, int count);
     // A bullet hit on a player: blood sprays away from `from`.
     void AddBloodHit(const FVec3 &position, const FVec3 &from, int damage);

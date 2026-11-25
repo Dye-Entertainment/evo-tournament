@@ -162,11 +162,29 @@ void Effects::AddBeam(
     beams.push_back(Beam{start, end, color, width, duration, duration});
 }
 
-void Effects::AddExplosion(const FVec3 &position)
+void Effects::AddScorch(const FVec3 &position, const FVec3 &normal, const Float size)
 {
-    AddBlast(Blast{position, {1.0f, 0.55f, 0.15f}, 4.2f, 0.45f, 0.45f, false});
-    AddBlast(Blast{position, {1.0f, 0.95f, 0.7f}, 2.2f, 0.2f, 0.2f, false});
-    for (int i = 0; i < 26; ++i)
+    if (decals.size() >= MAX_DECALS)
+    {
+        decals.erase(decals.begin());
+    }
+    Decal decal;
+    decal.position = position;
+    decal.normal = normal;
+    decal.size = size;
+    decal.spin = random.NextRange(0.0f, 6.28f);
+    decal.shape = static_cast<UInt8>(random.NextInt(0, 2));
+    decal.color = FVec3{0.035f, 0.03f, 0.028f};
+    decal.life = DECAL_LIFE;
+    decals.push_back(decal);
+}
+
+void Effects::AddExplosion(const FVec3 &position, const FVec3 &color, const Float scale)
+{
+    AddBlast(Blast{position, color, 4.2f * scale, 0.45f, 0.45f, false});
+    AddBlast(Blast{position, {1.0f, 0.95f, 0.7f}, 2.2f * scale, 0.2f, 0.2f, false});
+    const int sparks = static_cast<int>(26.0f * scale);
+    for (int i = 0; i < sparks; ++i)
     {
         Particle particle;
         particle.position = position;
@@ -174,9 +192,8 @@ void Effects::AddExplosion(const FVec3 &position)
             math::GetNormalized(
                 FVec3{random.NextRange(-1, 1), random.NextRange(-0.3f, 1.2f), random.NextRange(-1, 1)}
             ) *
-            random.NextRange(6.0f, 16.0f);
-        particle.color =
-            random.NextUnit() < 0.5f ? FVec3{1.0f, 0.75f, 0.2f} : FVec3{1.0f, 0.4f, 0.1f};
+            random.NextRange(6.0f, 16.0f) * std::sqrt(scale);
+        particle.color = random.NextUnit() < 0.5f ? math::GetLerp(color, FVec3{1.0f, 0.9f, 0.5f}, 0.5f) : color;
         particle.size = random.NextRange(0.08f, 0.18f);
         particle.life = particle.maxLife = random.NextRange(0.4f, 0.9f);
         particle.gravity = 14.0f;

@@ -48,6 +48,8 @@ struct InputFrame
     Bool fireHeld = false;
     Bool firePressed = false;
     int selectWeapon = -1;
+    Bool throwGrenade = false;
+    Bool placeMine = false;
     int cycleWeapon = 0;
     Bool lastWeapon = false;
     Bool scoreboard = false;
@@ -71,7 +73,7 @@ class GameScene final : public core::Scene
         std::string victimName;
         FVec3 killerColor;
         FVec3 victimColor;
-        WeaponId weapon = WeaponId::RIFLE;
+        DamageSource weapon = DamageSource::RIFLE;
         Bool headshot = false;
         Float time = 0.0f;
     };
@@ -104,7 +106,9 @@ class GameScene final : public core::Scene
     Bool AutoSwitchIfEmpty(Player &player);
     void ProcessEvents();
     void HandleEvent(const GameEvent &event);
-    void HandleShot(int shooter, WeaponId weapon, const FVec3 &origin, const FVec3 &end);
+    void DrawGrenade(const FVec3 &center, Float spin, const FVec3 &light, Float blink);
+    void DrawMine(const FVec3 &center, Float spin, const FVec3 &light, Float blink);
+    void HandleShot(int shooter, WeaponId weapon, const FVec3 &origin, const FVec3 &end, UInt8 pellet_seed);
     void PlayLocalMoveSounds();
     void UpdateRenderState(Float delta_seconds);
     void UpdateCamera(Float delta_seconds);
@@ -156,9 +160,12 @@ class GameScene final : public core::Scene
     std::string joinAddress;
     std::string hostAddress;
     std::string roomCode;
-    std::array<Bool, 16> previousKeys{};
+    std::array<Bool, 24> previousKeys{};
     std::array<Float, 4> lastTapTime{};
     Bool previousFire = false;
+    Bool previousAltFire = false;
+    // Thrown things leave a trail every other frame.
+    Bool effectsTrailToggle = false;
     Float wheel = 0.0f;
     Float realTime = 0.0f;
     Float shake = 0.0f;

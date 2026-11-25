@@ -231,6 +231,76 @@ def projectile_hum():
     return [math.sin(math.pi * i / n) * o.sine(110 + 20 * math.sin(i * 0.004)) for i in range(n)]
 
 
+def scatter():
+    n = samples(0.5)
+    lp, body, o = LowPass(6000), LowPass(400), Osc()
+    out = []
+    for i in range(n):
+        lp.set(600 + 6000 * math.exp(-9 * i / n))
+        crack = lp(noise())
+        out.append(envelope(i, n, attack=0.001, curve=5.5) * (0.9 * crack + 0.7 * body(noise()) + 0.35 * o.sine(sweep(110, 45, i, n))))
+    # A pump-action clack near the end.
+    start = int(n * 0.62)
+    for i in range(start, min(n, start + samples(0.03))):
+        out[i] += 0.35 * noise() * (1 - (i - start) / samples(0.03))
+    return out
+
+
+def frag_fire():
+    n = samples(0.32)
+    o, lp = Osc(), LowPass(900)
+    out = []
+    for i in range(n):
+        thunk = o.sine(sweep(180, 55, i, n))
+        out.append(envelope(i, n, attack=0.002, curve=4.0) * (0.9 * thunk + 0.5 * lp(noise())))
+    return out
+
+
+def ripper():
+    n = samples(0.22)
+    a, b, lp = Osc(), Osc(), LowPass(4000)
+    out = []
+    for i in range(n):
+        whine = 0.5 * a.saw(sweep(900, 1500, i, n)) + 0.3 * b.square(sweep(450, 760, i, n))
+        out.append(envelope(i, n, attack=0.003, curve=3.0) * (lp(whine) + 0.25 * noise() * math.exp(-30 * i / n)))
+    return out
+
+
+def bounce():
+    n = samples(0.12)
+    o, lp = Osc(), LowPass(2500)
+    return [envelope(i, n, attack=0.001, curve=7) * (0.7 * o.sine(sweep(520, 300, i, n)) + 0.5 * lp(noise())) for i in range(n)]
+
+
+def throw():
+    n = samples(0.25)
+    lp = LowPass(800)
+    out = []
+    for i in range(n):
+        lp.set(400 + 2200 * math.sin(math.pi * i / n))
+        out.append(math.sin(math.pi * i / n) ** 2 * lp(noise()))
+    return out
+
+
+def mine_arm():
+    out = []
+    for k, freq in enumerate((1250, 1250, 1870)):
+        n = samples(0.07)
+        o = Osc()
+        out += [envelope(i, n, attack=0.002, curve=3) * o.square(freq) * 0.6 for i in range(n)]
+        out += [0.0] * samples(0.05)
+    return out
+
+
+def ricochet():
+    n = samples(0.3)
+    o, lp = Osc(), LowPass(6000)
+    out = []
+    for i in range(n):
+        out.append(envelope(i, n, attack=0.001, curve=4) * (0.5 * o.sine(sweep(2600, 1700, i, n)) + 0.4 * lp(noise()) * math.exp(-20 * i / n)))
+    return out
+
+
 SOUNDS = {
     "rifle": (rifle, 0.55),
     "nova_fire": (nova_fire, 0.8),
@@ -252,6 +322,13 @@ SOUNDS = {
     "match_end": (match_end, 0.7),
     "empty": (empty, 0.4),
     "switch": (switch, 0.45),
+    "scatter": (scatter, 0.9),
+    "frag_fire": (frag_fire, 0.75),
+    "ripper": (ripper, 0.5),
+    "bounce": (bounce, 0.45),
+    "throw": (throw, 0.45),
+    "mine_arm": (mine_arm, 0.4),
+    "ricochet": (ricochet, 0.45),
 }
 
 if __name__ == "__main__":

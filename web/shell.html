@@ -147,15 +147,25 @@
     background: rgba(255, 90, 40, 0.25); border-color: rgba(255, 140, 40, 0.7);
   }
   #t-jump { width: 64px; height: 64px; right: calc(128px + env(safe-area-inset-right)); bottom: 22px; }
-  #t-dodge { width: 56px; height: 56px; right: calc(118px + env(safe-area-inset-right)); bottom: 100px; }
+  #t-dodge { width: 56px; height: 56px; right: calc(204px + env(safe-area-inset-right)); bottom: 26px; }
+  #t-gren {
+    width: 54px; height: 54px; right: calc(124px + env(safe-area-inset-right)); bottom: 98px;
+    background: rgba(255, 166, 58, 0.2); border-color: rgba(255, 166, 58, 0.6); font-size: 11px;
+  }
+  #t-mine {
+    width: 48px; height: 48px; right: calc(46px + env(safe-area-inset-right)); bottom: 134px;
+    background: rgba(255, 64, 48, 0.2); border-color: rgba(255, 64, 48, 0.6); font-size: 11px;
+  }
   #t-weapons {
     position: absolute;
     right: calc(14px + env(safe-area-inset-right));
-    bottom: 140px;
-    display: flex;
-    gap: 6px;
+    top: calc(100px + env(safe-area-inset-top));
+    display: grid;
+    grid-template-columns: repeat(3, 36px);
+    gap: 5px;
   }
-  #t-weapons .tbtn, #t-pause, #t-score {
+  #t-weapons .tbtn { position: static; width: 36px; height: 36px; border-radius: 9px; font-size: 13px; }
+  #t-pause, #t-score {
     position: static;
     width: 40px;
     height: 40px;
@@ -225,7 +235,12 @@
     <div class="tbtn" data-code="Digit1" data-key="1">1</div>
     <div class="tbtn" data-code="Digit2" data-key="2">2</div>
     <div class="tbtn" data-code="Digit3" data-key="3">3</div>
+    <div class="tbtn" data-code="Digit4" data-key="4">4</div>
+    <div class="tbtn" data-code="Digit5" data-key="5">5</div>
+    <div class="tbtn" data-code="Digit6" data-key="6">6</div>
   </div>
+  <div class="tbtn" id="t-gren" data-code="KeyG" data-key="g">GREN</div>
+  <div class="tbtn" id="t-mine" data-code="KeyF" data-key="f">MINE</div>
   <div class="tbtn" id="t-dodge" data-code="ShiftLeft" data-key="Shift">DODGE</div>
   <div class="tbtn" id="t-jump" data-code="Space" data-key=" ">JUMP</div>
   <div class="tbtn" id="t-fire">FIRE</div>

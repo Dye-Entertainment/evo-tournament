@@ -31,6 +31,10 @@ WeaponId ChooseWeapon(const Player &bot, const Bool has_target, const Float dist
     };
     if (has_target)
     {
+        if (distance < 7.0f && usable(WeaponId::SCATTER))
+        {
+            return WeaponId::SCATTER;
+        }
         if (distance > 22.0f && usable(WeaponId::RAIL))
         {
             return WeaponId::RAIL;
@@ -39,27 +43,47 @@ WeaponId ChooseWeapon(const Player &bot, const Bool has_target, const Float dist
         {
             return WeaponId::NOVA;
         }
+        if (distance > 6.0f && distance < 22.0f && usable(WeaponId::FRAG))
+        {
+            return WeaponId::FRAG;
+        }
+        if (distance < 26.0f && usable(WeaponId::RIPPER))
+        {
+            return WeaponId::RIPPER;
+        }
+        if (distance < 10.0f && usable(WeaponId::SCATTER))
+        {
+            return WeaponId::SCATTER;
+        }
         if (usable(WeaponId::RIFLE))
         {
             return WeaponId::RIFLE;
         }
-        if (usable(WeaponId::RAIL))
+        const WeaponId fallback[] = {WeaponId::RAIL, WeaponId::RIPPER, WeaponId::SCATTER};
+        for (const WeaponId weapon : fallback)
         {
-            return WeaponId::RAIL;
+            if (usable(weapon))
+            {
+                return weapon;
+            }
         }
         if (distance > 4.0f && usable(WeaponId::NOVA))
         {
             return WeaponId::NOVA;
         }
+        if (distance > 4.0f && usable(WeaponId::FRAG))
+        {
+            return WeaponId::FRAG;
+        }
         return bot.weapon;
     }
-    if (usable(WeaponId::NOVA))
+    const WeaponId order[] = {WeaponId::NOVA, WeaponId::SCATTER, WeaponId::RAIL, WeaponId::RIPPER, WeaponId::FRAG};
+    for (const WeaponId weapon : order)
     {
-        return WeaponId::NOVA;
-    }
-    if (usable(WeaponId::RAIL))
-    {
-        return WeaponId::RAIL;
+        if (usable(weapon))
+        {
+            return weapon;
+        }
     }
     return WeaponId::RIFLE;
 }
@@ -71,6 +95,14 @@ Float PickupDesire(const Player &bot, const PickupKind kind)
         const int index = static_cast<int>(weapon);
         return static_cast<Float>(bot.ammo[index]) / static_cast<Float>(GetWeaponDef(weapon).maxAmmo);
     };
+    const auto weapon_desire = [&](const WeaponId weapon)
+    {
+        return bot.hasWeapon[static_cast<int>(weapon)] ? (1.0f - ammo_ratio(weapon)) * 2.0f : 7.0f;
+    };
+    const auto ammo_desire = [&](const WeaponId weapon)
+    {
+        return bot.hasWeapon[static_cast<int>(weapon)] ? (1.0f - ammo_ratio(weapon)) * 2.5f : 0.3f;
+    };
     switch (kind)
     {
     case PickupKind::HEALTH:
@@ -80,18 +112,63 @@ Float PickupDesire(const Player &bot, const PickupKind kind)
     case PickupKind::ARMOR:
         return bot.armor < MAX_ARMOR ? 4.0f : 0.0f;
     case PickupKind::WEAPON_NOVA:
-        return bot.hasWeapon[1] ? (1.0f - ammo_ratio(WeaponId::NOVA)) * 2.0f : 7.0f;
+        return weapon_desire(WeaponId::NOVA);
     case PickupKind::WEAPON_RAIL:
-        return bot.hasWeapon[2] ? (1.0f - ammo_ratio(WeaponId::RAIL)) * 2.0f : 7.0f;
+        return weapon_desire(WeaponId::RAIL);
+    case PickupKind::WEAPON_SCATTER:
+        return weapon_desire(WeaponId::SCATTER) * 0.9f;
+    case PickupKind::WEAPON_FRAG:
+        return weapon_desire(WeaponId::FRAG) * 0.8f;
+    case PickupKind::WEAPON_RIPPER:
+        return weapon_desire(WeaponId::RIPPER) * 0.85f;
     case PickupKind::AMMO_RIFLE:
         return (1.0f - ammo_ratio(WeaponId::RIFLE)) * 2.0f;
     case PickupKind::AMMO_NOVA:
-        return bot.hasWeapon[1] ? (1.0f - ammo_ratio(WeaponId::NOVA)) * 2.5f : 0.3f;
+        return ammo_desire(WeaponId::NOVA);
     case PickupKind::AMMO_RAIL:
-        return bot.hasWeapon[2] ? (1.0f - ammo_ratio(WeaponId::RAIL)) * 2.5f : 0.3f;
+        return ammo_desire(WeaponId::RAIL);
+    case PickupKind::AMMO_SCATTER:
+        return ammo_desire(WeaponId::SCATTER);
+    case PickupKind::AMMO_FRAG:
+        return ammo_desire(WeaponId::FRAG);
+    case PickupKind::AMMO_RIPPER:
+        return ammo_desire(WeaponId::RIPPER);
+    case PickupKind::GRENADES:
+        return bot.grenades < MAX_GRENADES ? 1.0f + 0.5f * static_cast<Float>(MAX_GRENADES - bot.grenades) : 0.0f;
+    case PickupKind::MINES:
+        return bot.mines < MAX_MINES ? 1.5f : 0.0f;
     default:
         return 0.0f;
     }
+}
+
+// Picks the throw direction that lands a grenade about `distance` away horizontally and
+// `rise` higher (both measured from the thrower's eye).
+FVec3 GrenadeThrowDirection(const FVec3 &horizontal, const Float distance, const Float rise)
+{
+    constexpr Float SPEED = 19.0f;
+    constexpr Float LIFT = 4.5f;
+    constexpr Float HALF_GRAVITY = 9.0f;
+    Float best_pitch = 0.3f;
+    Float best_error = 1e9f;
+    for (Float pitch = -0.4f; pitch <= 0.9f; pitch += 0.025f)
+    {
+        const Float vx = SPEED * std::cos(pitch);
+        const Float vy = SPEED * std::sin(pitch) + LIFT;
+        const Float discriminant = vy * vy - 4.0f * HALF_GRAVITY * rise;
+        if (discriminant < 0.0f)
+        {
+            continue;
+        }
+        const Float time = (vy + std::sqrt(discriminant)) / (2.0f * HALF_GRAVITY);
+        const Float error = std::fabs(vx * time - distance);
+        if (error < best_error)
+        {
+            best_error = error;
+            best_pitch = pitch;
+        }
+    }
+    return math::GetNormalized(horizontal * std::cos(best_pitch) + FVec3{0.0f, std::sin(best_pitch), 0.0f});
 }
 
 void ChooseGoal(World &world, Player &bot)
@@ -279,9 +356,17 @@ void UpdateBot(
         {
             preferred = 25.0f;
         }
-        else if (bot.weapon == WeaponId::NOVA)
+        else if (bot.weapon == WeaponId::NOVA || bot.weapon == WeaponId::FRAG)
         {
             preferred = 14.0f;
+        }
+        else if (bot.weapon == WeaponId::SCATTER)
+        {
+            preferred = 4.0f;
+        }
+        else if (bot.weapon == WeaponId::RIPPER)
+        {
+            preferred = 12.0f;
         }
         const Float horizontal_distance = LengthXZ(to_enemy);
         Float approach = 0.0f;
@@ -305,6 +390,27 @@ void UpdateBot(
         }
     }
 
+    // Better bots notice armed enemy mines nearby and steer around them.
+    if (world.random.NextUnit() < 0.2f + 0.8f * brain.skill)
+    {
+        for (const Projectile &mine : world.projectiles)
+        {
+            if (mine.kind != ProjectileKind::MINE || !mine.armed || mine.owner == player_id)
+            {
+                continue;
+            }
+            FVec3 away = bot.move.position - mine.position;
+            away.y = 0.0f;
+            const Float distance = LengthXZ(away);
+            if (distance > 4.5f || distance < 0.01f || std::fabs(mine.position.y - bot.move.position.y) > 2.0f)
+            {
+                continue;
+            }
+            const Float push = (4.5f - distance) / 4.5f * (0.5f + brain.skill);
+            move_direction = math::GetNormalized(move_direction + away * (push / distance));
+        }
+    }
+
     Float desired_yaw = bot.yaw;
     Float desired_pitch = 0.0f;
     FVec3 aim_point;
@@ -318,6 +424,22 @@ void UpdateBot(
             lead.y = 0.0f;
             aim_point = target->move.position + lead;
             aim_point.y += target->move.onGround ? 0.3f : 1.0f;
+        }
+        else if (bot.weapon == WeaponId::FRAG)
+        {
+            const Float travel = target_distance / GetWeaponDef(WeaponId::FRAG).projectileSpeed;
+            FVec3 lead = target->move.velocity * (travel * brain.skill);
+            lead.y = 0.0f;
+            aim_point = target->move.position + lead;
+            // Aim above the target to make up for the shell dropping on the way.
+            aim_point.y += 0.4f + std::max(0.0f, 9.0f * travel * travel - 3.0f * travel);
+        }
+        else if (bot.weapon == WeaponId::RIPPER)
+        {
+            const Float travel = target_distance / GetWeaponDef(WeaponId::RIPPER).projectileSpeed;
+            FVec3 lead = target->move.velocity * (travel * brain.skill);
+            lead.y *= 0.3f;
+            aim_point = aim_point + lead;
         }
         else if (bot.weapon == WeaponId::RAIL && brain.skill > 0.6f)
         {
@@ -354,6 +476,37 @@ void UpdateBot(
     input.forward = math::GetDotProduct(move_direction, ForwardXZ(bot.yaw));
     input.right = math::GetDotProduct(move_direction, RightXZ(bot.yaw));
 
+    brain.throwTimer -= delta_seconds;
+    brain.mineTimer -= delta_seconds;
+    if (target_visible && target != nullptr && brain.reactionTimer <= 0.0f && brain.throwTimer <= 0.0f &&
+        bot.grenades > 0 && target_distance > 7.0f && target_distance < 26.0f &&
+        bot.throwCooldown <= 0.0f)
+    {
+        brain.throwTimer = world.random.NextRange(4.0f, 9.0f) * (1.4f - 0.6f * brain.skill);
+        FVec3 lead = target->move.velocity * (0.8f * brain.skill);
+        lead.y = 0.0f;
+        const FVec3 landing = target->move.position + lead;
+        FVec3 horizontal = landing - eye;
+        horizontal.y = 0.0f;
+        const Float distance = LengthXZ(horizontal);
+        if (distance > 1.0f)
+        {
+            const Float miss = (1.0f - brain.skill) * 0.12f;
+            horizontal = math::GetNormalized(horizontal + RightXZ(bot.yaw) * world.random.NextRange(-miss, miss) * distance);
+            fire.throwGrenade = true;
+            fire.origin = eye;
+            fire.throwDirection = GrenadeThrowDirection(horizontal, distance, landing.y + 0.3f - eye.y);
+        }
+    }
+    else if (!target_visible && brain.mineTimer <= 0.0f && bot.mines > 0 && bot.move.onGround &&
+             bot.throwCooldown <= 0.0f)
+    {
+        brain.mineTimer = world.random.NextRange(20.0f, 40.0f);
+        fire.placeMine = true;
+        fire.origin = eye;
+        fire.throwDirection = math::GetNormalized(ForwardXZ(bot.yaw) * 0.35f + FVec3{0.0f, -1.0f, 0.0f});
+    }
+
     const Bool wants_move = LengthXZ(move_direction) > 0.1f;
     if (wants_move && bot.move.onGround && LengthXZ(bot.move.velocity) < 1.5f)
     {
@@ -382,16 +535,20 @@ void UpdateBot(
     brain.burstPause -= delta_seconds;
     if (target_visible && target != nullptr && brain.reactionTimer <= 0.0f && brain.burstPause <= 0.0f)
     {
-        if (bot.weapon == WeaponId::NOVA && target_distance < 3.5f)
+        if ((bot.weapon == WeaponId::NOVA || bot.weapon == WeaponId::FRAG) && target_distance < 3.5f)
         {
             return;
         }
         const FVec3 view = math::GetDirectionFromYawPitch(bot.yaw, bot.pitch);
         const FVec3 exact = math::GetNormalized(aim_point - eye);
         Float tolerance = 0.12f;
-        if (bot.weapon == WeaponId::NOVA)
+        if (bot.weapon == WeaponId::NOVA || bot.weapon == WeaponId::FRAG)
         {
             tolerance = 0.09f;
+        }
+        else if (bot.weapon == WeaponId::RIPPER)
+        {
+            tolerance = 0.07f;
         }
         else if (bot.weapon == WeaponId::RAIL)
         {

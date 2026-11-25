@@ -18,7 +18,7 @@ using ::net::TransportEvent;
 using ::net::TransportEventType;
 using ::net::UsesRoomCodes;
 
-constexpr UInt8 PROTOCOL_VERSION = 2;
+constexpr UInt8 PROTOCOL_VERSION = 3;
 
 [[nodiscard]]
 const ::net::TransportSettings &GetTransportSettings();
@@ -36,7 +36,8 @@ enum class MessageType : UInt8
     CLIENT_STATE = 10,
     CLIENT_FIRE,
     CLIENT_RESPAWN,
-    BYE
+    BYE,
+    CLIENT_THROW
 };
 
 enum class SessionMode : UInt8
@@ -63,7 +64,9 @@ class Session final
                    const std::string &address);
     Bool StartClient(World &world, const std::string &name, const std::string &address);
     void Update(World &world, Float delta_seconds);
-    void SendFire(WeaponId weapon, const FVec3 &origin, const FVec3 &direction);
+    void SendFire(WeaponId weapon, const FVec3 &origin, const FVec3 &direction, UInt8 pellet_seed);
+    // Throws a grenade, or with `mine` places a proximity mine.
+    void SendThrow(Bool mine, const FVec3 &origin, const FVec3 &direction);
     void SendRespawnRequest();
     // Host and offline only: adds or removes bots to reach `count` and applies `skill` to all of them.
     void SetBots(World &world, int count, Float skill);

@@ -239,6 +239,7 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
 #crosshair .h { height: 2dp; margin-top: -2dp; }
 #crosshair .v { width: 2dp; margin-left: -2dp; }
 #crosshair .ring { left: -10dp; top: -10dp; width: 16dp; height: 16dp; border-radius: 10dp; background-color: transparent; border: 2dp #ffffffe6; }
+#crosshair .ring.wide { left: -20dp; top: -20dp; width: 36dp; height: 36dp; border-radius: 20dp; border: 2dp #ffffffb0; }
 #crosshair .dot { left: -2dp; top: -2dp; width: 3dp; height: 3dp; border-radius: 2dp; border-width: 0; }
 #crosshair .hit { width: 11dp; height: 3dp; margin-top: -2dp; margin-left: -6dp; background-color: #ff3c32; border-width: 0; }
 
@@ -256,12 +257,24 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
 #ammo .name { position: absolute; left: 18dp; top: 10dp; font-size: 15dp; }
 #ammo .number { right: 18dp; text-align: right; }
 
-#slots { position: absolute; right: 24dp; bottom: 104dp; width: 230dp; height: 36dp; }
+#slots { position: absolute; right: 24dp; bottom: 104dp; width: 230dp; height: 76dp; }
 .slot { position: absolute; top: 0; width: 72dp; height: 36dp; background-color: #08080e96; border-radius: 6dp; }
 .slot.selected { background-color: #ff8c2878; }
-.slot .label { position: absolute; left: 6dp; top: 3dp; font-size: 12dp; margin: 0; }
+.slot .label { position: absolute; left: 5dp; top: 3dp; font-size: 11dp; margin: 0; }
 .slot .count { position: absolute; right: 6dp; top: 16dp; font-size: 14dp; }
 .slot.missing .label, .slot.missing .count { color: #6e6e78a0; }
+
+#gear { right: 262dp; bottom: 24dp; width: 168dp; height: 72dp; }
+#gear .row { position: absolute; left: 10dp; right: 10dp; top: 9dp; height: 24dp; }
+#gear .row.second { top: 39dp; }
+#gear .key { position: absolute; left: 0; top: 2dp; width: 18dp; height: 18dp; border-radius: 4dp;
+    background-color: #ffffff22; font-size: 12dp; line-height: 18dp; text-align: center; color: #c8c8d2; }
+#gear .grenade { position: absolute; left: 26dp; top: 4dp; width: 14dp; height: 16dp; border-radius: 7dp;
+    background-color: #ffa63a; }
+#gear .mine { position: absolute; left: 25dp; top: 9dp; width: 16dp; height: 8dp; border-radius: 3dp;
+    background-color: #ff4030; }
+#gear .name { position: absolute; left: 48dp; top: 5dp; font-size: 11dp; color: #aaaab9; }
+#gear .count { position: absolute; right: 0; top: -2dp; font-size: 22dp; }
 
 #respawn { position: absolute; left: 0; right: 0; top: 62%; text-align: center; font-size: 24dp; }
 

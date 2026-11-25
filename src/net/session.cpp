@@ -400,6 +400,7 @@ void Session::HostReceive(World &world, const int peer, const std::vector<UInt8>
         const UInt8 weapon = reader.U8();
         FVec3 origin = reader.Vec3();
         const FVec3 direction = math::GetNormalized(reader.Vec3());
+        const UInt8 pellet_seed = reader.U8();
         if (reader.Failed() || weapon >= WEAPON_COUNT || !IsSane(origin) ||
             math::GetLength(direction) < 0.5f)
         {
@@ -422,7 +423,34 @@ void Session::HostReceive(World &world, const int peer, const std::vector<UInt8>
         {
             origin = eye;
         }
-        world.HostFire(player_id, origin, direction);
+        world.HostFire(player_id, origin, direction, pellet_seed);
+        return;
+    }
+    case MessageType::CLIENT_THROW:
+    {
+        if (player_id < 0)
+        {
+            return;
+        }
+        Player &player = world.players[player_id];
+        const UInt8 mine = reader.U8();
+        FVec3 origin = reader.Vec3();
+        const FVec3 direction = math::GetNormalized(reader.Vec3());
+        if (reader.Failed() || !IsSane(origin) || math::GetLength(direction) < 0.5f)
+        {
+            return;
+        }
+        // Allow for the client's clock running a little ahead of ours.
+        if (player.throwCooldown < 0.25f)
+        {
+            player.throwCooldown = 0.0f;
+        }
+        const FVec3 eye = EyePosition(player.move);
+        if (math::GetLength(origin - eye) > 2.5f)
+        {
+            origin = eye;
+        }
+        world.HostThrow(player_id, mine != 0, origin, direction);
         return;
     }
     case MessageType::CLIENT_RESPAWN:
@@ -485,6 +513,8 @@ std::vector<UInt8> Session::BuildSnapshot(const World &world) const
         {
             writer.I16(player.ammo[w]);
         }
+        writer.U8(static_cast<UInt8>(std::clamp<int>(player.grenades, 0, 255)));
+        writer.U8(static_cast<UInt8>(std::clamp<int>(player.mines, 0, 255)));
         writer.I16(player.frags);
         writer.I16(player.deaths);
         writer.U8(player.spawnCount);
@@ -497,16 +527,21 @@ std::vector<UInt8> Session::BuildSnapshot(const World &world) const
         const Projectile &projectile = world.projectiles[i];
         writer.U16(projectile.id);
         writer.U8(projectile.owner);
+        writer.U8(static_cast<UInt8>(
+            static_cast<UInt8>(projectile.kind) | (projectile.resting ? 0x40 : 0) | (projectile.armed ? 0x80 : 0)
+        ));
         writer.Vec3(projectile.position);
         writer.Vec3(projectile.velocity);
     }
 
-    UInt32 pickup_mask = 0;
-    for (size_t i = 0; i < world.pickups.size() && i < 32; ++i)
+    // Pickup availability as a 64-bit mask, written as two 32-bit halves.
+    UInt64 pickup_mask = 0;
+    for (size_t i = 0; i < world.pickups.size() && i < 64; ++i)
     {
-        pickup_mask |= world.pickups[i].available ? (1U << i) : 0U;
+        pickup_mask |= world.pickups[i].available ? (UInt64{1} << i) : UInt64{0};
     }
-    writer.U32(pickup_mask);
+    writer.U32(static_cast<UInt32>(pickup_mask));
+    writer.U32(static_cast<UInt32>(pickup_mask >> 32));
 
     const size_t event_count = std::min(world.eventLog.size(), MAX_SNAPSHOT_EVENTS);
     writer.U8(static_cast<UInt8>(event_count));
@@ -784,6 +819,8 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
         {
             ammo[w] = reader.I16();
         }
+        const Int16 grenades = reader.U8();
+        const Int16 mines = reader.U8();
         const Int16 frags = reader.I16();
         const Int16 deaths = reader.I16();
         const UInt8 spawn_count = reader.U8();
@@ -834,6 +871,8 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
             player.health = health;
             player.armor = armor;
             player.ammo = ammo;
+            player.grenades = grenades;
+            player.mines = mines;
             player.frags = frags;
             player.deaths = deaths;
             continue;
@@ -854,6 +893,8 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
         player.weapon = static_cast<WeaponId>(weapon % WEAPON_COUNT);
         player.hasWeapon = has_weapon;
         player.ammo = ammo;
+        player.grenades = grenades;
+        player.mines = mines;
         player.frags = frags;
         player.deaths = deaths;
         player.spawnCount = spawn_count;
@@ -878,20 +919,34 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
         Projectile projectile;
         projectile.id = reader.U16();
         projectile.owner = reader.U8();
+        const UInt8 kind = reader.U8();
+        projectile.kind = static_cast<ProjectileKind>((kind & 0x3F) % static_cast<int>(ProjectileKind::COUNT));
+        projectile.resting = (kind & 0x40) != 0;
+        projectile.armed = (kind & 0x80) != 0;
         projectile.position = reader.Vec3();
         projectile.velocity = reader.Vec3();
         projectile.life = 1.0f;
+        // Keep the client-side age so mines and grenades blink smoothly across snapshots.
+        for (const Projectile &previous : world.projectiles)
+        {
+            if (previous.id == projectile.id)
+            {
+                projectile.age = previous.age;
+                break;
+            }
+        }
         projectiles.push_back(projectile);
     }
-    const UInt32 pickup_mask = reader.U32();
+    const UInt64 pickup_low = reader.U32();
+    const UInt64 pickup_mask = pickup_low | (static_cast<UInt64>(reader.U32()) << 32);
     if (reader.Failed())
     {
         return;
     }
     world.projectiles = projectiles;
-    for (size_t i = 0; i < world.pickups.size() && i < 32; ++i)
+    for (size_t i = 0; i < world.pickups.size() && i < 64; ++i)
     {
-        world.pickups[i].available = (pickup_mask & (1U << i)) != 0;
+        world.pickups[i].available = (pickup_mask & (UInt64{1} << i)) != 0;
     }
 
     const UInt8 event_count = reader.U8();
@@ -943,7 +998,9 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
     hasEventSequence = true;
 }
 
-void Session::SendFire(const WeaponId weapon, const FVec3 &origin, const FVec3 &direction)
+void Session::SendFire(
+    const WeaponId weapon, const FVec3 &origin, const FVec3 &direction, const UInt8 pellet_seed
+)
 {
     if (mode != SessionMode::CLIENT || state != SessionState::ACTIVE || !transport)
     {
@@ -952,6 +1009,21 @@ void Session::SendFire(const WeaponId weapon, const FVec3 &origin, const FVec3 &
     ByteWriter writer;
     writer.U8(static_cast<UInt8>(MessageType::CLIENT_FIRE));
     writer.U8(static_cast<UInt8>(weapon));
+    writer.Vec3(origin);
+    writer.Vec3(direction);
+    writer.U8(pellet_seed);
+    transport->Send(0, writer.data);
+}
+
+void Session::SendThrow(const Bool mine, const FVec3 &origin, const FVec3 &direction)
+{
+    if (mode != SessionMode::CLIENT || state != SessionState::ACTIVE || !transport)
+    {
+        return;
+    }
+    ByteWriter writer;
+    writer.U8(static_cast<UInt8>(MessageType::CLIENT_THROW));
+    writer.U8(mine ? 1 : 0);
     writer.Vec3(origin);
     writer.Vec3(direction);
     transport->Send(0, writer.data);
