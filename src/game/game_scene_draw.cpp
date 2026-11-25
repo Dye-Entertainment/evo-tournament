@@ -321,6 +321,206 @@ void GameScene::DrawPickups()
     }
 }
 
+void GameScene::DrawMaw(const Hazard &hazard, const HazardState &state)
+{
+    const FVec3 forward{std::sin(hazard.yaw), 0.0f, std::cos(hazard.yaw)};
+    const FVec3 right = RightXZ(hazard.yaw);
+    const FVec3 base = hazard.position + FVec3{0.0f, MAW_WELL_HEIGHT, 0.0f};
+    const Float clock = world.hazardClock;
+
+    // How far the jaws are open: breathing when idle, wider when someone wanders close, gaping
+    // while winding up, snapped shut and chewing afterwards.
+    Float open = 0.14f + 0.05f * std::sin(clock * 1.7f + hazard.position.x);
+    Float nearest = 100.0f;
+    for (const Player &player : world.players)
+    {
+        if (player.active && player.alive)
+        {
+            nearest = std::min(nearest, math::GetLength(player.renderPosition - MawBiteCenter(hazard)));
+        }
+    }
+    open += math::Clamp((9.0f - nearest) / 6.0f, 0.0f, 1.0f) * 0.22f;
+    Bool angry = false;
+    if (state.maw == MawState::WINDUP)
+    {
+        const Float t = math::Clamp(state.timer / MAW_WINDUP, 0.0f, 1.0f);
+        open = 0.3f + 0.75f * t * t * (3.0f - 2.0f * t) + 0.03f * std::sin(clock * 50.0f);
+        angry = true;
+    }
+    else if (state.maw == MawState::COOLDOWN)
+    {
+        const Float t = state.timer;
+        open = t < 0.1f ? 0.0f : 0.12f * std::fabs(std::sin(t * 8.0f)) * math::Clamp(1.6f - t, 0.0f, 1.0f);
+        open += math::Clamp((t - 1.6f) / 0.6f, 0.0f, 1.0f) * 0.14f;
+        angry = t < 0.8f;
+    }
+
+    const FVec3 flesh{0.34f, 0.1f, 0.15f};
+    const SurfaceStyle wet{0.85f, 1.0f};
+    constexpr Float S = 1.5f;
+    // Points relative to the creature: forward, up and sideways from the top of the well.
+    const auto at = [&](const Float ahead, const Float up, const Float side)
+    { return base + (forward * ahead + FVec3{0.0f, up, 0.0f} + right * side) * S; };
+    // Dark opening of the well under the creature.
+    renderer.DrawShape(MeshShape::CUBE, base + FVec3{0.0f, 0.01f, 0.0f},
+                       {MAW_WELL_HALF * 1.8f, 0.02f, MAW_WELL_HALF * 1.8f}, {0.02f, 0.01f, 0.01f});
+    const Float breathe = 1.0f + 0.04f * std::sin(clock * 1.7f);
+    renderer.DrawShape(MeshShape::SPHERE, at(-0.35f, 0.7f, 0.0f), FVec3{2.5f, 1.8f * breathe, 2.4f} * S, flesh, 0.0f,
+                       hazard.yaw, 0.0f, 0.0f, wet);
+    for (int i = 0; i < 4; ++i)
+    {
+        const Float side = i < 2 ? -1.0f : 1.0f;
+        const Float k = static_cast<Float>(i % 2);
+        renderer.DrawShape(MeshShape::SPHERE, at(-0.6f - 0.3f * k, 1.1f + 0.3f * k, side * (0.8f + 0.15f * k)),
+                           FVec3{0.5f, 0.45f, 0.5f} * S, flesh * 1.3f, 0.0f, 0.0f, 0.0f, 0.0f, wet);
+    }
+
+    const FVec3 hinge = at(0.45f, 0.75f, 0.0f);
+    const auto along = [&](const Float yaw, const Float pitch, const Float length)
+    { return math::GetDirectionFromYawPitch(yaw, pitch) * (length * S); };
+    const Float upper = open;
+    const Float lower = -open * 0.45f;
+    // Glowing throat, visible when the mouth opens.
+    renderer.DrawShape(MeshShape::SPHERE, hinge + forward * (0.4f * S), FVec3{1.3f, 0.2f + open * 0.9f, 1.3f} * S,
+                       angry ? FVec3{0.9f, 0.08f, 0.05f} : FVec3{0.55f, 0.06f, 0.1f}, 0.9f, hazard.yaw);
+    renderer.DrawShape(MeshShape::SPHERE, hinge + along(hazard.yaw, upper, 0.85f) + FVec3{0.0f, 0.18f * S, 0.0f},
+                       FVec3{2.1f, 0.6f, 1.9f} * S, flesh * 1.15f, 0.0f, hazard.yaw, upper, 0.0f, wet);
+    renderer.DrawShape(MeshShape::SPHERE, hinge + along(hazard.yaw, lower, 0.85f) - FVec3{0.0f, 0.3f * S, 0.0f},
+                       FVec3{1.9f, 0.5f, 1.8f} * S, flesh * 1.05f, 0.0f, hazard.yaw, lower, 0.0f, wet);
+    // Fangs around the rims of both jaws; the middle ones are longest.
+    const FVec3 tooth{0.95f, 0.9f, 0.78f};
+    for (int k = -3; k <= 3; ++k)
+    {
+        const Float spread = static_cast<Float>(k) * 0.24f;
+        const Float reach = 1.55f - std::fabs(static_cast<Float>(k)) * 0.07f;
+        const Float length = 0.55f - std::fabs(static_cast<Float>(k)) * 0.06f;
+        const FVec3 top = hinge + along(hazard.yaw + spread, upper, reach) - FVec3{0.0f, 0.08f * S, 0.0f};
+        renderer.DrawShape(MeshShape::CUBE, top, FVec3{0.13f, length, 0.13f} * S, tooth, 0.0f, hazard.yaw + spread + 0.785f,
+                           upper, 0.0f, SurfaceStyle{0.6f, 1.0f});
+        if (k > -3 && k < 3)
+        {
+            const FVec3 bottom = hinge + along(hazard.yaw + spread * 1.1f, lower, reach - 0.1f) - FVec3{0.0f, 0.15f * S, 0.0f};
+            renderer.DrawShape(MeshShape::CUBE, bottom, FVec3{0.11f, length * 0.75f, 0.11f} * S, tooth, 0.0f,
+                               hazard.yaw + spread + 0.785f, lower, 0.0f, SurfaceStyle{0.6f, 1.0f});
+        }
+    }
+    // Eyes on stalks: yellow while it waits, red when it strikes.
+    const FVec3 eye_color = angry ? FVec3{1.0f, 0.12f, 0.05f} : FVec3{1.0f, 0.82f, 0.2f};
+    for (int side = -1; side <= 1; side += 2)
+    {
+        const Float sway = 0.08f * std::sin(clock * 2.3f + static_cast<Float>(side));
+        const FVec3 stalk = at(-0.1f, 1.55f, static_cast<Float>(side) * 0.55f);
+        const FVec3 eye = at(0.05f, 2.0f, static_cast<Float>(side) * 0.55f + sway);
+        renderer.DrawShape(MeshShape::CUBE, stalk + FVec3{0.0f, 0.2f * S, 0.0f}, FVec3{0.12f, 0.5f, 0.12f} * S, flesh,
+                           0.0f, hazard.yaw);
+        renderer.DrawShape(MeshShape::SPHERE, eye, FVec3{0.34f, 0.34f, 0.34f} * S, {0.95f, 0.92f, 0.85f}, 0.2f);
+        renderer.DrawShape(MeshShape::SPHERE, eye + forward * (0.13f * S), FVec3{0.16f, 0.2f, 0.16f} * S, eye_color, 1.0f,
+                           hazard.yaw);
+        renderer.DrawGlow(eye, 0.7f * S, eye_color, angry ? 0.5f : 0.25f);
+    }
+}
+
+void GameScene::DrawHazards()
+{
+    const Float clock = world.hazardClock;
+    for (size_t h = 0; h < world.arena.hazards.size(); ++h)
+    {
+        const Hazard &hazard = world.arena.hazards[h];
+        const primitive::AxisAlignedBox &area = hazard.area;
+        const FVec3 size{area.max.x - area.min.x, 0.0f, area.max.z - area.min.z};
+        switch (hazard.kind)
+        {
+        case HazardKind::LAVA:
+        {
+            const Float surface = -0.5f;
+            const Float wave = 0.5f + 0.5f * std::sin(clock * 1.3f + hazard.position.x);
+            renderer.DrawShape(MeshShape::CUBE, {hazard.position.x, surface, hazard.position.z},
+                               {size.x, 0.05f, size.z}, math::GetLerp(FVec3{0.75f, 0.16f, 0.02f}, FVec3{0.9f, 0.28f, 0.03f}, wave),
+                               0.9f);
+            // Hot streaks drifting across the surface.
+            for (int i = 0; i < 4; ++i)
+            {
+                const Float fi = static_cast<Float>(i);
+                const Float u = std::fmod(clock * 0.05f * (1.0f + fi * 0.3f) + fi * 0.27f, 1.0f);
+                const FVec3 streak{area.min.x + size.x * (0.1f + 0.8f * u), surface + 0.03f,
+                                   area.min.z + size.z * (0.15f + 0.7f * (0.5f + 0.45f * std::sin(clock * 0.2f + fi * 2.0f)))};
+                renderer.DrawShape(MeshShape::SPHERE, streak, {std::min(size.x, size.z) * 0.45f, 0.03f, 0.25f},
+                                   {1.0f, 0.62f, 0.15f}, 1.0f, fi * 0.9f + clock * 0.03f);
+            }
+            // Slow-drifting crust and a few bubbles that swell and pop.
+            for (int i = 0; i < 5; ++i)
+            {
+                const Float fi = static_cast<Float>(i);
+                const Float u = 0.5f + 0.4f * std::sin(clock * 0.11f + fi * 2.1f);
+                const Float v = 0.5f + 0.4f * std::cos(clock * 0.09f + fi * 1.7f);
+                const FVec3 crust{area.min.x + size.x * u, surface + 0.03f, area.min.z + size.z * v};
+                renderer.DrawShape(MeshShape::SPHERE, crust, {0.9f, 0.05f, 0.7f}, {0.16f, 0.05f, 0.03f}, 0.0f,
+                                   clock * 0.05f + fi);
+            }
+            for (int i = 0; i < 3; ++i)
+            {
+                const Float cycle = clock * 0.6f + static_cast<Float>(i) * 0.37f + hazard.position.z * 0.1f;
+                const Float t = cycle - std::floor(cycle);
+                const UInt32 seed = math::GetHash(static_cast<UInt32>(std::floor(cycle)) * 31U + static_cast<UInt32>(i) + static_cast<UInt32>(h) * 977U);
+                const Float u = 0.15f + 0.7f * static_cast<Float>(seed & 0xFF) / 255.0f;
+                const Float v = 0.15f + 0.7f * static_cast<Float>((seed >> 8) & 0xFF) / 255.0f;
+                const Float r = 0.1f + 0.35f * t;
+                renderer.DrawShape(MeshShape::SPHERE, {area.min.x + size.x * u, surface + r * 0.3f, area.min.z + size.z * v},
+                                   {r, r * 0.8f, r}, {1.0f, 0.7f, 0.2f}, 1.0f);
+            }
+            renderer.DrawGlow({hazard.position.x, 0.2f, hazard.position.z}, std::max(size.x, size.z) * 0.75f,
+                              {1.0f, 0.4f, 0.08f}, 0.18f + 0.06f * wave);
+            break;
+        }
+        case HazardKind::SPIKES:
+        {
+            const Float extension = SpikeExtension(hazard, clock);
+            const Float t = std::fmod(clock + hazard.phase, SPIKE_PERIOD);
+            const Bool warning = t > 1.8f && t < 2.6f;
+            renderer.DrawShape(MeshShape::CUBE, hazard.position + FVec3{0.0f, 0.02f, 0.0f}, {size.x + 0.2f, 0.04f, size.z + 0.2f},
+                               {0.22f, 0.2f, 0.2f}, 0.0f, 0.0f, 0.0f, 0.0f, SurfaceStyle{0.5f, 1.0f});
+            renderer.DrawShape(MeshShape::CUBE, hazard.position + FVec3{0.0f, 0.025f, 0.0f}, {size.x, 0.045f, size.z},
+                               warning ? FVec3{0.9f, 0.12f, 0.05f} * (0.6f + 0.4f * std::sin(t * 30.0f)) : FVec3{0.3f, 0.3f, 0.33f},
+                               warning ? 0.8f : 0.0f, 0.0f, 0.0f, 0.0f, SurfaceStyle{0.7f, 1.0f});
+            if (warning)
+            {
+                renderer.DrawGlow(hazard.position + FVec3{0.0f, 0.3f, 0.0f}, std::max(size.x, size.z) * 0.7f,
+                                  {1.0f, 0.15f, 0.05f}, 0.2f);
+            }
+            constexpr Float SPACING = 0.75f;
+            const int nx = std::max(1, static_cast<int>(size.x / SPACING));
+            const int nz = std::max(1, static_cast<int>(size.z / SPACING));
+            for (int ix = 0; ix < nx; ++ix)
+            {
+                for (int iz = 0; iz < nz; ++iz)
+                {
+                    const FVec3 spot{area.min.x + (static_cast<Float>(ix) + 0.5f) * size.x / static_cast<Float>(nx), 0.0f,
+                                     area.min.z + (static_cast<Float>(iz) + 0.5f) * size.z / static_cast<Float>(nz)};
+                    if (extension <= 0.01f)
+                    {
+                        renderer.DrawShape(MeshShape::CUBE, spot + FVec3{0.0f, 0.05f, 0.0f}, {0.16f, 0.01f, 0.16f},
+                                           {0.04f, 0.04f, 0.05f});
+                        continue;
+                    }
+                    const Float height = 1.1f * extension;
+                    renderer.DrawShape(MeshShape::CUBE, spot + FVec3{0.0f, height * 0.5f, 0.0f}, {0.1f, height, 0.1f},
+                                       {0.62f, 0.62f, 0.66f}, 0.0f, 0.785f, 0.0f, 0.0f, SurfaceStyle{0.9f, 1.0f});
+                    renderer.DrawShape(MeshShape::CUBE, spot + FVec3{0.0f, height + 0.06f, 0.0f}, {0.05f, 0.12f, 0.05f},
+                                       {0.8f, 0.8f, 0.85f}, 0.0f, 0.785f, 0.0f, 0.0f, SurfaceStyle{0.9f, 1.0f});
+                }
+            }
+            break;
+        }
+        case HazardKind::MAW:
+            if (h < world.hazardStates.size())
+            {
+                DrawMaw(hazard, world.hazardStates[h]);
+            }
+            break;
+        }
+    }
+}
+
 void GameScene::DrawJumpPads()
 {
     for (const JumpPad &pad : world.arena.jumpPads)
@@ -497,6 +697,7 @@ void GameScene::DrawWorld()
     renderer.DrawLevel();
     DrawJumpPads();
     DrawPickups();
+    DrawHazards();
     for (int i = 0; i < MAX_PLAYERS; ++i)
     {
         const Player &player = world.players[i];

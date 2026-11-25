@@ -37,6 +37,10 @@ enum class Sound : UInt8
     THROW,
     MINE_ARM,
     RICOCHET,
+    GROWL,
+    CHOMP,
+    SPIKES,
+    SIZZLE,
     COUNT
 };
 

@@ -301,6 +301,48 @@ def ricochet():
     return out
 
 
+def growl():
+    n = samples(0.6)
+    a, b, lp = Osc(), Osc(), LowPass(700)
+    out = []
+    for i in range(n):
+        wobble = 1 + 0.15 * math.sin(i * 0.0025) + 0.08 * math.sin(i * 0.011)
+        tone = 0.6 * a.saw(70 * wobble) + 0.4 * b.saw(105 * wobble)
+        out.append(math.sin(math.pi * min(1, i / (n * 0.85))) ** 0.5 * (lp(tone) + 0.3 * lp(noise())))
+    return out
+
+
+def chomp():
+    n = samples(0.35)
+    o, lp, wet = Osc(), LowPass(2500), LowPass(500)
+    out = []
+    for i in range(n):
+        crunch = math.exp(-25 * i / n) * lp(noise())
+        thud = o.sine(sweep(140, 50, i, n)) * math.exp(-8 * i / n)
+        out.append(0.9 * crunch + 0.8 * thud + 0.5 * wet(noise()) * math.exp(-4 * i / n))
+    return out
+
+
+def spikes():
+    n = samples(0.3)
+    a, b, lp = Osc(), Osc(), LowPass(8000)
+    out = []
+    for i in range(n):
+        ring = 0.4 * a.sine(1850) + 0.3 * b.sine(2730)
+        out.append(envelope(i, n, attack=0.001, curve=6) * (ring + 0.7 * lp(noise()) * math.exp(-30 * i / n)))
+    return out
+
+
+def sizzle():
+    n = samples(0.4)
+    hp = LowPass(9000)
+    out = []
+    for i in range(n):
+        crackle = noise() * (1.0 if rng.random() < 0.08 else 0.25)
+        out.append(math.sin(math.pi * i / n) * hp(crackle))
+    return out
+
+
 SOUNDS = {
     "rifle": (rifle, 0.55),
     "nova_fire": (nova_fire, 0.8),
@@ -329,6 +371,10 @@ SOUNDS = {
     "throw": (throw, 0.45),
     "mine_arm": (mine_arm, 0.4),
     "ricochet": (ricochet, 0.45),
+    "growl": (growl, 0.7),
+    "chomp": (chomp, 0.9),
+    "spikes": (spikes, 0.55),
+    "sizzle": (sizzle, 0.4),
 }
 
 if __name__ == "__main__":

@@ -130,6 +130,11 @@ Bool EvoUi::Initialize(const std::string &ui_dir)
     display("connectStatus", &s.connectStatus);
     display("error", &s.error);
     display("damage", &s.damage);
+    display("hurtTop", &s.hurtTop);
+    display("hurtBottom", &s.hurtBottom);
+    display("hurtLeft", &s.hurtLeft);
+    display("hurtRight", &s.hurtRight);
+    display("lowHealth", &s.lowHealth);
     display("alive", &s.alive);
     display("crosshair", &s.crosshair);
     display("hit", &s.hit);

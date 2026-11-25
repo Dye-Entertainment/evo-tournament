@@ -52,13 +52,64 @@ int ValidateWaypoints(const Arena &arena)
         const Bool blocked = arena.IsBlocked(PlayerBounds(p + FVec3{0.0f, 0.01f, 0.0f}));
         const int nearest = arena.FindNearestWaypoint(p + FVec3{0.0f, 0.1f, 0.0f}, true);
         const Bool reachable =
-            nearest >= 0 && math::GetLength(arena.waypoints[nearest].position - p) < 14.0f;
+            nearest >= 0 && math::GetLength(arena.waypoints[nearest].position - p) < 18.0f;
         if (!supported || blocked || !reachable)
         {
             std::printf("pickup %s at %.1f %.1f %.1f:%s%s%s\n", PickupName(spot.kind), p.x, p.y, p.z,
                         supported ? "" : " floating", blocked ? " inside geometry" : "",
                         reachable ? "" : " far from waypoints");
             ++failures;
+        }
+    }
+    // Hazards must stay clear of the bot routes, pickups and spawns.
+    for (const Hazard &hazard : arena.hazards)
+    {
+        FVec3 center = hazard.position;
+        Float half_x = (hazard.area.max.x - hazard.area.min.x) * 0.5f + 0.6f;
+        Float half_z = (hazard.area.max.z - hazard.area.min.z) * 0.5f + 0.6f;
+        if (hazard.kind == HazardKind::MAW)
+        {
+            center = MawBiteCenter(hazard);
+            half_x = half_z = MAW_BITE_RADIUS + 0.4f;
+        }
+        const auto inside = [&](const FVec3 &p)
+        {
+            return std::fabs(p.x - center.x) < half_x && std::fabs(p.z - center.z) < half_z &&
+                   std::fabs(p.y - center.y) < 2.0f;
+        };
+        for (const Waypoint &waypoint : arena.waypoints)
+        {
+            for (const int link : waypoint.links)
+            {
+                const FVec3 b = arena.waypoints[link].position;
+                for (int step = 0; step <= 20; ++step)
+                {
+                    const FVec3 p = math::GetLerp(waypoint.position, b, static_cast<Float>(step) / 20.0f);
+                    if (inside(p))
+                    {
+                        std::printf("hazard at %.1f %.1f crosses the bot route %.1f %.1f -> %.1f %.1f\n", center.x,
+                                    center.z, waypoint.position.x, waypoint.position.z, b.x, b.z);
+                        ++failures;
+                        break;
+                    }
+                }
+            }
+        }
+        for (const PickupSpot &spot : arena.pickupSpots)
+        {
+            if (inside(spot.position))
+            {
+                std::printf("hazard at %.1f %.1f covers a pickup\n", center.x, center.z);
+                ++failures;
+            }
+        }
+        for (const SpawnPoint &spawn : arena.spawnPoints)
+        {
+            if (inside(spawn.position))
+            {
+                std::printf("hazard at %.1f %.1f covers a spawn\n", center.x, center.z);
+                ++failures;
+            }
         }
     }
     for (const SpawnPoint &spawn : arena.spawnPoints)
@@ -222,6 +273,7 @@ int SimulateArena(const ArenaId arena_id)
     int mines = 0;
     int armed = 0;
     int max_projectiles = 0;
+    int hazard_events = 0;
     std::array<int, static_cast<int>(DamageSource::COUNT)> kills_by{};
     int ring_samples = 0;
     int altar_samples = 0;
@@ -245,6 +297,7 @@ int SimulateArena(const ArenaId arena_id)
             {
                 ++kills_by[(event.c & 0x7F) % static_cast<int>(DamageSource::COUNT)];
             }
+            hazard_events += event.type == EventType::HAZARD ? 1 : 0;
         }
         max_projectiles = std::max(max_projectiles, static_cast<int>(world.projectiles.size()));
         for (const Projectile &projectile : world.projectiles)
@@ -303,7 +356,16 @@ int SimulateArena(const ArenaId arena_id)
 
     std::printf("simulated %d s with %d bots\n", SECONDS, settings.botCount);
     std::printf("shots %d explosions %d kills %d pickups %d\n", shots, explosions, kills, pickups);
-    std::printf("grenades %d mines %d armed %d most projectiles %d\n", throws, mines, armed, max_projectiles);
+    std::printf("grenades %d mines %d armed %d most projectiles %d hazard events %d\n", throws, mines, armed,
+                max_projectiles, hazard_events);
+    const int hazard_kills = kills_by[static_cast<int>(DamageSource::LAVA)] +
+                             kills_by[static_cast<int>(DamageSource::SPIKES)] +
+                             kills_by[static_cast<int>(DamageSource::MAW)];
+    if (hazard_kills * 4 > kills)
+    {
+        std::printf("hazards cause too many of the deaths (%d of %d)\n", hazard_kills, kills);
+        ++failures;
+    }
     std::printf("kills by");
     for (int source = 0; source < static_cast<int>(DamageSource::COUNT); ++source)
     {

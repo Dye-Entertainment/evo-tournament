@@ -106,6 +106,8 @@ class GameScene final : public core::Scene
     Bool AutoSwitchIfEmpty(Player &player);
     void ProcessEvents();
     void HandleEvent(const GameEvent &event);
+    void DrawHazards();
+    void DrawMaw(const Hazard &hazard, const HazardState &state);
     void DrawGrenade(const FVec3 &center, Float spin, const FVec3 &light, Float blink);
     void DrawMine(const FVec3 &center, Float spin, const FVec3 &light, Float blink);
     void HandleShot(int shooter, WeaponId weapon, const FVec3 &origin, const FVec3 &end, UInt8 pellet_seed);
@@ -174,6 +176,11 @@ class GameScene final : public core::Scene
     Float bobPhase = 0.0f;
     Float hitMarker = 0.0f;
     Float damageFlash = 0.0f;
+    // Hurt feedback: how strongly each screen edge flashes (front, back, left, right), and a
+    // short view punch that rolls away from the hit and kicks the view up.
+    std::array<Float, 4> hurtEdges{};
+    Float hurtRoll = 0.0f;
+    Float hurtPitch = 0.0f;
     Float respawnRequestTimer = 0.0f;
     WeaponId previousWeapon = WeaponId::RIFLE;
     FVec3 cameraEye;

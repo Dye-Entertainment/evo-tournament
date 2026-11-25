@@ -353,6 +353,9 @@ void GameScene::EnterMatch()
     pickupBanner = Banner{};
     hitMarker = 0.0f;
     damageFlash = 0.0f;
+    hurtEdges = {};
+    hurtRoll = 0.0f;
+    hurtPitch = 0.0f;
     fireArmed = false;
     menuOpen = false;
     wasCaptured = false;
@@ -524,6 +527,14 @@ void GameScene::Update(const double elapsed_seconds)
 
     hitMarker = std::max(0.0f, hitMarker - delta_seconds);
     damageFlash = std::max(0.0f, damageFlash - delta_seconds * 1.5f);
+    for (Float &edge : hurtEdges)
+    {
+        edge = std::max(0.0f, edge - delta_seconds * 1.6f);
+    }
+    // The view punch springs back quickly.
+    const Float settle = std::exp(-delta_seconds * 9.0f);
+    hurtRoll *= settle;
+    hurtPitch *= settle;
     shake = std::max(0.0f, shake - delta_seconds * 2.5f);
     recoil = std::max(0.0f, recoil - delta_seconds * 6.0f);
     landDip = std::max(0.0f, landDip - delta_seconds * 1.2f);
@@ -690,6 +701,15 @@ void GameScene::UpdateLocalPlayerHost(const Float delta_seconds, const InputFram
 void GameScene::UpdateLocalPlayerClient(const Float delta_seconds, const InputFrame &input)
 {
     world.localMoveEvents = MoveEvents{};
+    world.hazardClock += delta_seconds;
+    for (HazardState &state : world.hazardStates)
+    {
+        state.timer += delta_seconds;
+        if (state.maw == MawState::COOLDOWN && state.timer > MAW_COOLDOWN)
+        {
+            state.maw = MawState::IDLE;
+        }
+    }
     for (Projectile &projectile : world.projectiles)
     {
         // Rough local motion between snapshots; the host corrects it 20 times a second.
@@ -990,6 +1010,53 @@ void GameScene::HandleEvent(const GameEvent &event)
         }
         break;
     }
+    case EventType::HAZARD:
+    {
+        const auto action = static_cast<HazardAction>(event.b);
+        const Bool client = session.mode == net::SessionMode::CLIENT;
+        if (client && event.c < world.hazardStates.size())
+        {
+            HazardState &state = world.hazardStates[event.c];
+            if (action == HazardAction::MAW_WINDUP)
+            {
+                state.maw = MawState::WINDUP;
+                state.timer = 0.0f;
+            }
+            else if (action == HazardAction::MAW_BITE)
+            {
+                state.maw = MawState::COOLDOWN;
+                state.timer = 0.0f;
+            }
+        }
+        if (action == HazardAction::LAVA_BURN)
+        {
+            effects.AddSparks(event.p0 + FVec3{0.0f, 0.3f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.5f, 0.1f}, 4);
+        }
+        else if (action == HazardAction::MAW_BITE && event.a != 255)
+        {
+            effects.AddBloodHit(event.p0 + FVec3{0.0f, 1.0f, 0.0f}, event.p0, 120);
+        }
+        if (demo)
+        {
+            break;
+        }
+        switch (action)
+        {
+        case HazardAction::SPIKES_FIRE:
+            sfx.PlayAt(Sound::SPIKES, event.p0, 0.8f);
+            break;
+        case HazardAction::MAW_WINDUP:
+            sfx.PlayAt(Sound::GROWL, event.p0, 1.0f);
+            break;
+        case HazardAction::MAW_BITE:
+            sfx.PlayAt(Sound::CHOMP, event.p0, 1.0f);
+            break;
+        case HazardAction::LAVA_BURN:
+            sfx.PlayAt(Sound::SIZZLE, event.p0, event.a == local ? 0.7f : 0.4f);
+            break;
+        }
+        break;
+    }
     case EventType::MINE_ARMED:
         if (!demo)
         {
@@ -1006,7 +1073,8 @@ void GameScene::HandleEvent(const GameEvent &event)
         const FVec3 color = victim < MAX_PLAYERS ? PlayerColor(world.players[victim].colorIndex) : FVec3{1, 1, 1};
         // A point-blank Scattergun blast tears a player apart like an explosion does.
         effects.AddGibs(event.p0, event.p1, color, headshot,
-                        IsExplosive(weapon) || weapon == DamageSource::SCATTER);
+                        IsExplosive(weapon) || weapon == DamageSource::SCATTER || weapon == DamageSource::MAW ||
+                            weapon == DamageSource::SPIKES);
         if (victim < MAX_PLAYERS)
         {
             world.players[victim].alive = false;
@@ -1036,7 +1104,24 @@ void GameScene::HandleEvent(const GameEvent &event)
             deathPosition = event.p0;
             deathYaw = cameraYaw;
             deathStartTime = realTime;
-            const std::string by = killer == victim ? "You fragged yourself" : "Fragged by " + PlayerName(killer);
+            std::string by = killer == victim ? "You fragged yourself" : "Fragged by " + PlayerName(killer);
+            if (killer == victim && weapon == DamageSource::LAVA)
+            {
+                by = "You burned in the lava";
+            }
+            else if (killer == victim && weapon == DamageSource::SPIKES)
+            {
+                by = "Impaled on the spikes";
+            }
+            else if (killer == victim && weapon == DamageSource::MAW)
+            {
+                by = "The Maw ate you";
+            }
+            else if (IsHazard(weapon))
+            {
+                by = PlayerName(killer) + " fed you to the " +
+                     (weapon == DamageSource::MAW ? "Maw" : weapon == DamageSource::LAVA ? "lava" : "spikes");
+            }
             banner = Banner{by, "", {1.0f, 0.3f, 0.25f}, realTime + 3.0f};
         }
         else if (killer == local && local >= 0)
@@ -1065,8 +1150,31 @@ void GameScene::HandleEvent(const GameEvent &event)
         }
         if (event.b == local && local >= 0)
         {
-            damageFlash = std::min(1.0f, damageFlash + static_cast<Float>(event.c) / 60.0f);
-            sfx.Play(Sound::HURT, 0.7f);
+            const Float amount = static_cast<Float>(event.c);
+            const Float strength = math::Clamp(amount / 40.0f, 0.35f, 1.0f);
+            damageFlash = std::min(1.0f, damageFlash + amount / 60.0f);
+            // Light up the screen edge facing whoever did it; falls and self-damage come from below.
+            FVec3 from = event.p1 - event.p0;
+            from.y = 0.0f;
+            Float side = 0.0f;
+            if (LengthXZ(from) > 0.3f)
+            {
+                from = math::GetNormalized(from);
+                const Float ahead = math::GetDotProduct(from, ForwardXZ(cameraYaw));
+                side = math::GetDotProduct(from, RightXZ(cameraYaw));
+                hurtEdges[0] = std::max(hurtEdges[0], strength * std::max(0.0f, ahead));
+                hurtEdges[1] = std::max(hurtEdges[1], strength * std::max(0.0f, -ahead));
+                hurtEdges[2] = std::max(hurtEdges[2], strength * std::max(0.0f, -side));
+                hurtEdges[3] = std::max(hurtEdges[3], strength * std::max(0.0f, side));
+            }
+            else
+            {
+                hurtEdges[1] = std::max(hurtEdges[1], strength);
+            }
+            hurtRoll = math::Clamp(hurtRoll - side * 0.09f * strength, -0.12f, 0.12f);
+            hurtPitch = std::min(hurtPitch + 0.035f * strength, 0.08f);
+            shake = std::max(shake, 0.12f + 0.2f * strength);
+            sfx.Play(Sound::HURT, 0.55f + 0.35f * strength);
         }
         break;
     }
@@ -1214,7 +1322,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
     if (player == nullptr)
     {
         // Circle the arena inside its walls.
-        const Float half_size = world.arena.boxes.empty() ? 40.0f : world.arena.boxes[0].bounds.max.x;
+        const Float half_size = world.arena.boxes.empty() ? 40.0f : world.arena.bounds.max.x;
         const Float angle = realTime * 0.08f;
         cameraEye = FVec3{std::sin(angle) * half_size * 0.8f, 13.0f, std::cos(angle) * half_size * 0.8f};
         math::GetYawPitchFromDirection(FVec3{0.0f, 2.0f, 0.0f} - cameraEye, cameraYaw, cameraPitch);
@@ -1248,7 +1356,7 @@ void GameScene::UpdateCamera(const Float delta_seconds)
             player->move.wallRunning ? player->move.wallNormal * WALL_RUN_CAMERA_TILT : FVec3{0.0f, 0.0f, 0.0f};
         cameraTilt = cameraTilt + (tilt_target - cameraTilt) * std::min(1.0f, delta_seconds * 8.0f);
         cameraYaw = player->yaw;
-        cameraPitch = player->pitch;
+        cameraPitch = math::Clamp(player->pitch + hurtPitch, -1.5f, 1.5f);
     }
     else
     {
@@ -1319,7 +1427,7 @@ void GameScene::Render()
     const Float aspect = size.y > 0 ? static_cast<Float>(size.x) / static_cast<Float>(size.y) : 16.0f / 9.0f;
     renderer.SetCamera(
         cameraEye, cameraYaw, cameraPitch, HorizontalToVerticalFov(options.fieldOfView, aspect), aspect,
-        FVec3{0.0f, 1.0f, 0.0f} + cameraTilt
+        FVec3{0.0f, 1.0f, 0.0f} + cameraTilt + RightXZ(cameraYaw) * hurtRoll
     );
     DrawWorld();
     UpdateUi();

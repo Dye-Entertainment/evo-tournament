@@ -475,6 +475,7 @@ std::vector<UInt8> Session::BuildSnapshot(const World &world) const
     writer.F32(world.match.timeRemaining);
     writer.U8(world.match.winner < 0 ? NO_PLAYER : static_cast<UInt8>(world.match.winner));
     writer.I16(world.settings.fragLimit);
+    writer.F32(world.hazardClock);
 
     UInt8 count = 0;
     for (const Player &player : world.players)
@@ -791,9 +792,15 @@ void Session::ApplySnapshot(World &world, const std::vector<UInt8> &data)
     const Float time_remaining = reader.F32();
     const UInt8 winner = reader.U8();
     const Int16 frag_limit = reader.I16();
+    const Float hazard_clock = reader.F32();
     if (reader.Failed())
     {
         return;
+    }
+    // Snapshots arrive in bursts; only snap the local hazard clock when it drifts noticeably.
+    if (std::fabs(world.hazardClock - hazard_clock) > 0.08f)
+    {
+        world.hazardClock = hazard_clock;
     }
     world.match.phase = phase;
     world.match.timeRemaining = time_remaining;

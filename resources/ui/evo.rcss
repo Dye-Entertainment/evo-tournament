@@ -228,6 +228,8 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
 .box { position: absolute; background-color: #08080e96; border-radius: 10dp; }
 
 .flash { position: absolute; }
+.vignette { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    decorator: radial-gradient(circle farthest-corner, #00000000 35%, #a00000b0 75%, #c00000f0 100%); }
 .flash.left { left: 0; top: 0; bottom: 0; width: 160dp; decorator: linear-gradient(to right, #c80000, #c8000000); }
 .flash.right { right: 0; top: 0; bottom: 0; width: 160dp; decorator: linear-gradient(to left, #c80000, #c8000000); }
 .flash.top { left: 0; right: 0; top: 0; height: 160dp; decorator: linear-gradient(to bottom, #c80000, #c8000000); }

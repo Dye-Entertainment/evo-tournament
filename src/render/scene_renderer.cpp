@@ -335,7 +335,7 @@ void BakeLevel(const Arena &arena, std::vector<Float> &vertices, std::vector<UIn
     {
         return;
     }
-    const primitive::AxisAlignedBox &floor = arena.boxes[0].bounds;
+    const primitive::AxisAlignedBox &floor = arena.bounds;
     const FVec3 sun = math::GetNormalized(arena.theme.sunDirection);
     for (size_t index = 0; index < arena.boxes.size(); ++index)
     {

@@ -107,6 +107,48 @@ struct Waypoint
     std::vector<int> links;
 };
 
+enum class HazardKind : UInt8
+{
+    // A pit of lava sunk into the floor: burns anyone standing in it.
+    LAVA,
+    // A floor plate that shoots spikes up every few seconds.
+    SPIKES,
+    // A monster in a stone well: when someone comes close it opens up, then snaps shut and
+    // eats whoever is in front of it.
+    MAW
+};
+
+struct Hazard
+{
+    HazardKind kind = HazardKind::LAVA;
+    // Lava and spikes: the area that hurts. Maw: the stone well it sits in.
+    primitive::AxisAlignedBox area;
+    // Floor-level center; for a maw the center of its well.
+    FVec3 position;
+    // Which way a maw faces.
+    Float yaw = 0.0f;
+    // Spikes: offset into the cycle so traps don't all fire together.
+    Float phase = 0.0f;
+};
+
+constexpr Float LAVA_DEPTH = 0.9f;
+constexpr Float SPIKE_PERIOD = 3.2f;
+constexpr Float MAW_WELL_HEIGHT = 1.2f;
+constexpr Float MAW_WELL_HALF = 1.5f;
+// The bite reaches a circle in front of the maw.
+constexpr Float MAW_REACH = 2.9f;
+constexpr Float MAW_BITE_RADIUS = 2.4f;
+constexpr Float MAW_WINDUP = 0.55f;
+constexpr Float MAW_COOLDOWN = 2.2f;
+
+// How far the spikes are out (0 down, 1 fully up) at hazard clock `time`.
+[[nodiscard]]
+Float SpikeExtension(const Hazard &hazard, Float time);
+
+// Center of the circle a maw bites, at floor level.
+[[nodiscard]]
+FVec3 MawBiteCenter(const Hazard &hazard);
+
 struct RayHit
 {
     Float distance = 0.0f;
@@ -142,6 +184,11 @@ class Arena final
     std::vector<SpawnPoint> spawnPoints;
     std::vector<PickupSpot> pickupSpots;
     std::vector<Waypoint> waypoints;
+    std::vector<Hazard> hazards;
+    // The floor slab's full extent (the first box each level adds), kept even when pits split it.
+    primitive::AxisAlignedBox bounds;
+    // Every level is built at its design size and then stretched this much horizontally.
+    Float scale = 1.0f;
 
   private:
     void Clear();
@@ -158,5 +205,13 @@ class Arena final
     int AddWaypoint(const FVec3 &position);
     void Link(int a, int b);
     void LinkOneWay(int from, int to);
+    void ScaleHorizontally(Float factor);
+    void AddHazards();
+    // Hazard helpers take positions in design units (before scaling) and sizes in metres.
+    void AddLavaPit(Float x, Float z, Float half_x, Float half_z);
+    void AddSpikes(Float x, Float z, Float half, Float phase);
+    void AddMaw(Float x, Float z, Float yaw);
+    // Cuts a hole in the floor slab (the boxes whose top is at y = 0).
+    void CarveFloor(Float x0, Float z0, Float x1, Float z1);
 };
 } // namespace evo

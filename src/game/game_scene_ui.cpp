@@ -279,6 +279,20 @@ void GameScene::FillHud()
     const Player *player = LocalPlayer();
 
     s.damage = math::Clamp(damageFlash, 0.0f, 1.0f);
+    const Float base = s.damage * 0.35f;
+    s.hurtTop = math::Clamp(base + hurtEdges[0], 0.0f, 1.0f);
+    s.hurtBottom = math::Clamp(base + hurtEdges[1], 0.0f, 1.0f);
+    s.hurtLeft = math::Clamp(base + hurtEdges[2], 0.0f, 1.0f);
+    s.hurtRight = math::Clamp(base + hurtEdges[3], 0.0f, 1.0f);
+    s.lowHealth = 0.0f;
+    if (player != nullptr && player->alive && player->health <= 35)
+    {
+        // A heartbeat: two quick pulses a second, stronger the closer to death.
+        const Float beat = std::fmod(realTime * 1.25f, 1.0f);
+        const Float pulse = std::exp(-beat * 9.0f) + 0.6f * std::exp(-std::fabs(beat - 0.22f) * 14.0f);
+        const Float danger = 1.0f - static_cast<Float>(std::max<int>(player->health, 0)) / 35.0f;
+        s.lowHealth = math::Clamp((0.25f + 0.5f * danger) * (0.55f + 0.45f * pulse), 0.0f, 1.0f);
+    }
     s.alive = player != nullptr && player->alive;
     s.respawn = !s.alive && player != nullptr && world.match.phase == MatchPhase::PLAYING;
     s.respawnAlpha = 0.6f + 0.4f * std::sin(realTime * 4.0f);

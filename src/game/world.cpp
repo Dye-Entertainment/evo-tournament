@@ -87,6 +87,12 @@ const Char *DamageSourceName(const DamageSource source)
         return "GRENADE";
     case DamageSource::MINE:
         return "MINE";
+    case DamageSource::LAVA:
+        return "LAVA";
+    case DamageSource::SPIKES:
+        return "SPIKES";
+    case DamageSource::MAW:
+        return "MAW";
     default:
         return "PULSE";
     }
@@ -107,6 +113,18 @@ FVec3 DamageSourceColor(const DamageSource source)
     if (source == DamageSource::MINE)
     {
         return {1.0f, 0.2f, 0.15f};
+    }
+    if (source == DamageSource::LAVA)
+    {
+        return {1.0f, 0.45f, 0.1f};
+    }
+    if (source == DamageSource::SPIKES)
+    {
+        return {0.75f, 0.75f, 0.8f};
+    }
+    if (source == DamageSource::MAW)
+    {
+        return {0.85f, 0.2f, 0.45f};
     }
     return GetWeaponDef(static_cast<WeaponId>(source)).color;
 }
@@ -215,6 +233,8 @@ void World::Initialize(const MatchSettings &match_settings)
     match = MatchState{};
     match.timeRemaining = settings.timeLimitSeconds;
     time = 0.0f;
+    hazardClock = 0.0f;
+    hazardStates.assign(arena.hazards.size(), HazardState{});
 }
 
 int World::AddPlayer(const std::string &player_name, const PlayerControl control, const int peer)
@@ -292,6 +312,7 @@ void World::HostTick(
     StepPlayers(delta_seconds, local_input, local_fire);
     StepProjectiles(delta_seconds);
     StepPickups(delta_seconds);
+    StepHazards(delta_seconds);
     while (!eventLog.empty() && eventLog.front().time < time - EVENT_LOG_SECONDS)
     {
         eventLog.pop_front();
@@ -1060,8 +1081,11 @@ void World::Damage(
     );
     player.armor = static_cast<Int16>(player.armor - absorbed);
     player.health = static_cast<Int16>(player.health - (amount - absorbed));
-    player.lastDamageFrom = static_cast<Int16>(attacker);
-    player.lastDamageTime = time;
+    if (!IsHazard(source))
+    {
+        player.lastDamageFrom = static_cast<Int16>(attacker);
+        player.lastDamageTime = time;
+    }
 
     GameEvent event;
     event.type = EventType::HIT;
@@ -1070,8 +1094,9 @@ void World::Damage(
     event.c = static_cast<UInt8>(std::min<int>(amount, 255));
     event.p0 = player.move.position + FVec3{0.0f, 1.2f, 0.0f};
     // Where the damage came from, so clients can spray blood away from it.
-    event.p1 = attacker >= 0 && attacker != victim ? EyePosition(players[attacker].move)
-                                                   : event.p0 + FVec3{0.0f, -1.0f, 0.0f};
+    event.p1 = attacker >= 0 && attacker != victim && !IsHazard(source)
+                   ? EyePosition(players[attacker].move)
+                   : event.p0 + FVec3{0.0f, -1.0f, 0.0f};
     EmitEvent(event);
 
     if (player.health <= 0)
@@ -1240,6 +1265,146 @@ Bool World::TryGivePickup(Player &player, const PickupKind kind)
         return true;
     default:
         return false;
+    }
+}
+
+void World::HazardDamage(const int victim, const Int16 amount, const DamageSource source)
+{
+    const Player &player = players[victim];
+    int attacker = -1;
+    if (player.lastDamageFrom >= 0 && player.lastDamageFrom != victim && time - player.lastDamageTime < 4.0f &&
+        players[player.lastDamageFrom].active)
+    {
+        attacker = player.lastDamageFrom;
+    }
+    Damage(victim, attacker, amount, source, false);
+}
+
+void World::StepHazards(const Float delta_seconds)
+{
+    hazardClock = time;
+    if (hazardStates.size() != arena.hazards.size())
+    {
+        hazardStates.assign(arena.hazards.size(), HazardState{});
+    }
+    const auto feet_in = [](const Player &player, const primitive::AxisAlignedBox &area, const Float margin)
+    {
+        const FVec3 &p = player.move.position;
+        return p.x > area.min.x - margin && p.x < area.max.x + margin && p.z > area.min.z - margin &&
+               p.z < area.max.z + margin && p.y >= area.min.y && p.y <= area.max.y;
+    };
+    for (size_t h = 0; h < arena.hazards.size(); ++h)
+    {
+        const Hazard &hazard = arena.hazards[h];
+        HazardState &state = hazardStates[h];
+        const auto emit = [&](const HazardAction action, const int player, const FVec3 &position)
+        {
+            GameEvent event;
+            event.type = EventType::HAZARD;
+            event.a = ToEventPlayer(player);
+            event.b = static_cast<UInt8>(action);
+            event.c = static_cast<UInt8>(h);
+            event.p0 = position;
+            EmitEvent(event);
+        };
+        switch (hazard.kind)
+        {
+        case HazardKind::LAVA:
+            for (int i = 0; i < MAX_PLAYERS; ++i)
+            {
+                Player &player = players[i];
+                if (!player.active || !player.alive || !feet_in(player, hazard.area, PLAYER_HALF_WIDTH * 0.5f))
+                {
+                    continue;
+                }
+                player.lavaTimer -= delta_seconds;
+                if (player.lavaTimer <= 0.0f)
+                {
+                    player.lavaTimer = 0.2f;
+                    emit(HazardAction::LAVA_BURN, i, player.move.position);
+                    HazardDamage(i, 13, DamageSource::LAVA);
+                }
+            }
+            break;
+        case HazardKind::SPIKES:
+        {
+            const int cycle = static_cast<int>((hazardClock + hazard.phase) / SPIKE_PERIOD);
+            if (cycle != state.cycle)
+            {
+                state.cycle = cycle;
+                state.hitMask = 0;
+            }
+            const Float extension = SpikeExtension(hazard, hazardClock);
+            const Float t = std::fmod(hazardClock + hazard.phase, SPIKE_PERIOD);
+            if (t >= 2.6f && t - delta_seconds < 2.6f)
+            {
+                emit(HazardAction::SPIKES_FIRE, -1, hazard.position);
+            }
+            if (extension < 0.5f)
+            {
+                break;
+            }
+            for (int i = 0; i < MAX_PLAYERS; ++i)
+            {
+                Player &player = players[i];
+                if (!player.active || !player.alive || (state.hitMask & (1U << i)) != 0 ||
+                    !feet_in(player, hazard.area, PLAYER_HALF_WIDTH))
+                {
+                    continue;
+                }
+                state.hitMask |= 1U << i;
+                ApplyImpulse(i, FVec3{0.0f, 7.0f, 0.0f});
+                HazardDamage(i, 55, DamageSource::SPIKES);
+            }
+            break;
+        }
+        case HazardKind::MAW:
+        {
+            const FVec3 bite = MawBiteCenter(hazard);
+            const auto in_reach = [&](const Player &player, const Float radius)
+            {
+                const FVec3 d = player.move.position - bite;
+                return player.active && player.alive && std::fabs(d.y) < 2.5f &&
+                       std::sqrt(d.x * d.x + d.z * d.z) < radius;
+            };
+            state.timer += delta_seconds;
+            if (state.maw == MawState::IDLE)
+            {
+                for (int i = 0; i < MAX_PLAYERS; ++i)
+                {
+                    if (in_reach(players[i], MAW_BITE_RADIUS))
+                    {
+                        state.maw = MawState::WINDUP;
+                        state.timer = 0.0f;
+                        emit(HazardAction::MAW_WINDUP, i, hazard.position);
+                        break;
+                    }
+                }
+            }
+            else if (state.maw == MawState::WINDUP && state.timer >= MAW_WINDUP)
+            {
+                state.maw = MawState::COOLDOWN;
+                state.timer = 0.0f;
+                int eaten = -1;
+                for (int i = 0; i < MAX_PLAYERS; ++i)
+                {
+                    // The snap reaches a little further than the trigger.
+                    if (in_reach(players[i], MAW_BITE_RADIUS + 0.4f))
+                    {
+                        eaten = i;
+                        HazardDamage(i, 500, DamageSource::MAW);
+                    }
+                }
+                emit(HazardAction::MAW_BITE, eaten, bite);
+            }
+            else if (state.maw == MawState::COOLDOWN && state.timer >= MAW_COOLDOWN)
+            {
+                state.maw = MawState::IDLE;
+                state.timer = 0.0f;
+            }
+            break;
+        }
+        }
     }
 }
 

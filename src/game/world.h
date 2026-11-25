@@ -84,8 +84,17 @@ enum class DamageSource : UInt8
     RIPPER,
     GRENADE,
     MINE,
+    LAVA,
+    SPIKES,
+    MAW,
     COUNT
 };
+
+[[nodiscard]]
+inline Bool IsHazard(const DamageSource source)
+{
+    return source == DamageSource::LAVA || source == DamageSource::SPIKES || source == DamageSource::MAW;
+}
 
 [[nodiscard]]
 inline DamageSource SourceOf(const WeaponId weapon)
@@ -177,6 +186,8 @@ struct Player
     Float healthDecayTimer = 0.0f;
     Int16 lastDamageFrom = -1;
     Float lastDamageTime = -100.0f;
+    // Time until the lava burns again while standing in it.
+    Float lavaTimer = 0.0f;
     BotBrain brain;
     FVec3 renderPosition;
     Float renderYaw = 0.0f;
@@ -225,7 +236,35 @@ enum class EventType : UInt8
     // a = thrower, b = 0 for a grenade, 1 for a mine
     THROW,
     BOUNCE,
-    MINE_ARMED
+    MINE_ARMED,
+    // b = HazardAction, c = hazard index, a = player involved (or 255)
+    HAZARD
+};
+
+enum class HazardAction : UInt8
+{
+    SPIKES_FIRE,
+    MAW_WINDUP,
+    MAW_BITE,
+    LAVA_BURN
+};
+
+enum class MawState : UInt8
+{
+    IDLE,
+    WINDUP,
+    COOLDOWN
+};
+
+// What a hazard is doing right now. Spikes run on the shared hazard clock; maws are driven by
+// the host and mirrored on clients through HAZARD events.
+struct HazardState
+{
+    MawState maw = MawState::IDLE;
+    Float timer = 0.0f;
+    // Spikes: who was already hit this cycle, and which cycle that was.
+    UInt32 hitMask = 0;
+    int cycle = -1;
 };
 
 struct GameEvent
@@ -323,6 +362,9 @@ class World final
     std::array<Player, MAX_PLAYERS> players;
     std::vector<Projectile> projectiles;
     std::vector<Pickup> pickups;
+    std::vector<HazardState> hazardStates;
+    // Drives the spike traps; the host sends it to clients so traps fire in step everywhere.
+    Float hazardClock = 0.0f;
     std::deque<GameEvent> eventLog;
     std::vector<GameEvent> newEvents;
     UInt16 nextEventSequence = 1;
@@ -335,6 +377,9 @@ class World final
     void StepPlayers(Float delta_seconds, const MoveInput &local_input, const FireRequest &local_fire);
     void StepProjectiles(Float delta_seconds);
     void StepPickups(Float delta_seconds);
+    void StepHazards(Float delta_seconds);
+    // Hazard damage counts as a kill for whoever last hurt the victim, if that was recent.
+    void HazardDamage(int victim, Int16 amount, DamageSource source);
     void StepMatch(Float delta_seconds);
     void Explode(const Projectile &projectile, const FVec3 &position);
     UInt16 SpawnProjectile(int owner, ProjectileKind kind, const FVec3 &position, const FVec3 &velocity, Float life);

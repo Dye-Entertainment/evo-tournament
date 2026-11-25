@@ -390,6 +390,43 @@ void UpdateBot(
         }
     }
 
+    // Keep clear of lava, spike plates and the Maw's reach; climb out of lava right away.
+    for (const Hazard &hazard : arena.hazards)
+    {
+        FVec3 center = hazard.position;
+        Float half_x = (hazard.area.max.x - hazard.area.min.x) * 0.5f;
+        Float half_z = (hazard.area.max.z - hazard.area.min.z) * 0.5f;
+        if (hazard.kind == HazardKind::MAW)
+        {
+            center = MawBiteCenter(hazard);
+            half_x = half_z = MAW_BITE_RADIUS + 0.6f;
+        }
+        const FVec3 offset = bot.move.position - center;
+        if (std::fabs(offset.y) > 2.5f)
+        {
+            continue;
+        }
+        const Float out_x = std::fabs(offset.x) - half_x;
+        const Float out_z = std::fabs(offset.z) - half_z;
+        const Float gap = std::max(out_x, out_z);
+        if (gap > 2.0f)
+        {
+            continue;
+        }
+        FVec3 away{offset.x, 0.0f, offset.z};
+        if (LengthXZ(away) < 0.01f)
+        {
+            away = FVec3{1.0f, 0.0f, 0.0f};
+        }
+        away = math::GetNormalized(away);
+        const Float push = gap < 0.0f ? 3.0f : (2.0f - gap) / 2.0f * 1.5f;
+        move_direction = math::GetNormalized(move_direction + away * push);
+        if (gap < 0.0f && hazard.kind == HazardKind::LAVA && bot.move.onGround)
+        {
+            input.jump = true;
+        }
+    }
+
     // Better bots notice armed enemy mines nearby and steer around them.
     if (world.random.NextUnit() < 0.2f + 0.8f * brain.skill)
     {

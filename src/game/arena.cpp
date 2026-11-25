@@ -10,6 +10,8 @@ namespace evo
 {
 namespace
 {
+// Levels are laid out compactly and then stretched this much horizontally (heights stay).
+constexpr Float ARENA_SCALE = 1.35f;
 const FVec3 FLOOR_COLOR{0.30f, 0.32f, 0.37f};
 const FVec3 WALL_COLOR{0.40f, 0.38f, 0.36f};
 const FVec3 KEEP_COLOR{0.58f, 0.46f, 0.30f};
@@ -71,6 +73,8 @@ void Arena::Clear()
     spawnPoints.clear();
     pickupSpots.clear();
     waypoints.clear();
+    hazards.clear();
+    scale = 1.0f;
     theme = ArenaTheme{};
 }
 
@@ -92,6 +96,197 @@ void Arena::Build(const ArenaId arena_id)
         BuildBastion();
         break;
     }
+    ScaleHorizontally(ARENA_SCALE);
+    bounds = boxes.empty() ? primitive::AxisAlignedBox{} : boxes[0].bounds;
+    AddHazards();
+}
+
+void Arena::ScaleHorizontally(const Float factor)
+{
+    scale = factor;
+    const auto stretch = [factor](FVec3 &p)
+    {
+        p.x *= factor;
+        p.z *= factor;
+    };
+    for (ArenaBox &box : boxes)
+    {
+        stretch(box.bounds.min);
+        stretch(box.bounds.max);
+    }
+    for (ArenaLight &light : lights)
+    {
+        stretch(light.position);
+        light.radius *= 1.0f + (factor - 1.0f) * 0.5f;
+    }
+    for (JumpPad &pad : jumpPads)
+    {
+        // Same flight time, so the horizontal speed grows with the distance to cover.
+        stretch(pad.trigger.min);
+        stretch(pad.trigger.max);
+        stretch(pad.launchVelocity);
+    }
+    for (SpawnPoint &spawn : spawnPoints)
+    {
+        stretch(spawn.position);
+    }
+    for (PickupSpot &spot : pickupSpots)
+    {
+        stretch(spot.position);
+    }
+    for (Waypoint &waypoint : waypoints)
+    {
+        stretch(waypoint.position);
+    }
+    theme.fogDensity /= factor;
+}
+
+void Arena::CarveFloor(const Float x0, const Float z0, const Float x1, const Float z1)
+{
+    std::vector<ArenaBox> result;
+    result.reserve(boxes.size() + 4);
+    for (const ArenaBox &box : boxes)
+    {
+        const primitive::AxisAlignedBox &b = box.bounds;
+        const Bool is_floor = box.solid && std::fabs(b.max.y) < 0.01f && b.min.y < -0.5f;
+        const Bool overlaps = b.min.x < x1 && b.max.x > x0 && b.min.z < z1 && b.max.z > z0;
+        if (!is_floor || !overlaps)
+        {
+            result.push_back(box);
+            continue;
+        }
+        // Keep the four pieces around the hole.
+        const auto piece = [&](const Float ax, const Float az, const Float bx, const Float bz)
+        {
+            if (bx - ax > 0.01f && bz - az > 0.01f)
+            {
+                ArenaBox part = box;
+                part.bounds = primitive::AxisAlignedBox{{ax, b.min.y, az}, {bx, b.max.y, bz}};
+                result.push_back(part);
+            }
+        };
+        piece(b.min.x, b.min.z, b.max.x, std::max(b.min.z, z0));
+        piece(b.min.x, std::min(b.max.z, z1), b.max.x, b.max.z);
+        piece(b.min.x, std::max(b.min.z, z0), std::max(b.min.x, x0), std::min(b.max.z, z1));
+        piece(std::min(b.max.x, x1), std::max(b.min.z, z0), b.max.x, std::min(b.max.z, z1));
+    }
+    boxes.swap(result);
+}
+
+void Arena::AddLavaPit(const Float x, const Float z, const Float half_x, const Float half_z)
+{
+    const Float cx = x * scale;
+    const Float cz = z * scale;
+    CarveFloor(cx - half_x, cz - half_z, cx + half_x, cz + half_z);
+    // Pit floor, then a stone rim so the edge reads from a distance.
+    AddBox({cx - half_x, -1.6f, cz - half_z}, {cx + half_x, -LAVA_DEPTH, cz + half_z}, {0.12f, 0.07f, 0.05f});
+    const FVec3 rim{0.16f, 0.13f, 0.12f};
+    AddGlow({cx - half_x - 0.3f, 0.0f, cz - half_z - 0.3f}, {cx + half_x + 0.3f, 0.06f, cz - half_z}, rim * 0.6f);
+    AddGlow({cx - half_x - 0.3f, 0.0f, cz + half_z}, {cx + half_x + 0.3f, 0.06f, cz + half_z + 0.3f}, rim * 0.6f);
+    AddGlow({cx - half_x - 0.3f, 0.0f, cz - half_z}, {cx - half_x, 0.06f, cz + half_z}, rim * 0.6f);
+    AddGlow({cx + half_x, 0.0f, cz - half_z}, {cx + half_x + 0.3f, 0.06f, cz + half_z}, rim * 0.6f);
+    lights.push_back(ArenaLight{{cx, 0.8f, cz}, {1.0f, 0.38f, 0.08f}, 6.0f + std::max(half_x, half_z) * 1.5f});
+    Hazard hazard;
+    hazard.kind = HazardKind::LAVA;
+    hazard.area = primitive::AxisAlignedBox{{cx - half_x, -LAVA_DEPTH - 0.5f, cz - half_z},
+                                            {cx + half_x, -0.25f, cz + half_z}};
+    hazard.position = {cx, -LAVA_DEPTH, cz};
+    hazards.push_back(hazard);
+}
+
+void Arena::AddSpikes(const Float x, const Float z, const Float half, const Float phase)
+{
+    const Float cx = x * scale;
+    const Float cz = z * scale;
+    Hazard hazard;
+    hazard.kind = HazardKind::SPIKES;
+    hazard.area = primitive::AxisAlignedBox{{cx - half, -0.1f, cz - half}, {cx + half, 1.0f, cz + half}};
+    hazard.position = {cx, 0.0f, cz};
+    hazard.phase = phase;
+    hazards.push_back(hazard);
+}
+
+void Arena::AddMaw(const Float x, const Float z, const Float yaw)
+{
+    const Float cx = x * scale;
+    const Float cz = z * scale;
+    // The stone well blocks movement; the creature sits on top of it.
+    AddBox({cx - MAW_WELL_HALF, 0.0f, cz - MAW_WELL_HALF}, {cx + MAW_WELL_HALF, MAW_WELL_HEIGHT, cz + MAW_WELL_HALF},
+           {0.36f, 0.32f, 0.3f});
+    lights.push_back(ArenaLight{{cx, MAW_WELL_HEIGHT + 2.5f, cz}, {0.7f, 0.15f, 0.25f}, 7.0f});
+    Hazard hazard;
+    hazard.kind = HazardKind::MAW;
+    hazard.area = primitive::AxisAlignedBox{{cx - MAW_WELL_HALF, 0.0f, cz - MAW_WELL_HALF},
+                                            {cx + MAW_WELL_HALF, MAW_WELL_HEIGHT, cz + MAW_WELL_HALF}};
+    hazard.position = {cx, 0.0f, cz};
+    hazard.yaw = yaw;
+    hazards.push_back(hazard);
+}
+
+void Arena::AddHazards()
+{
+    // Positions come from a search for open floor away from the bot routes, pickups and
+    // spawns (see the self-test, which checks this); each level is point-symmetric.
+    constexpr Float PI = 3.14159265f;
+    switch (id)
+    {
+    case ArenaId::FOUNDRY:
+        AddLavaPit(26.5f, 15.0f, 1.8f, 3.2f);
+        AddLavaPit(-26.5f, -15.0f, 1.8f, 3.2f);
+        AddSpikes(24.0f, 26.0f, 1.6f, 0.0f);
+        AddSpikes(-24.0f, -26.0f, 1.6f, 1.6f);
+        AddMaw(5.0f, -29.5f, 0.0f);
+        AddMaw(-5.0f, 29.5f, PI);
+        break;
+    case ArenaId::FROSTSPIRE:
+        AddLavaPit(26.0f, -23.0f, 3.5f, 3.5f);
+        AddLavaPit(-26.0f, 23.0f, 3.5f, 3.5f);
+        AddSpikes(19.0f, -31.0f, 2.0f, 0.0f);
+        AddSpikes(-19.0f, 31.0f, 2.0f, 1.6f);
+        AddSpikes(9.0f, -28.0f, 1.5f, 0.8f);
+        AddSpikes(-9.0f, 28.0f, 1.5f, 2.4f);
+        AddMaw(28.0f, 35.0f, PI);
+        AddMaw(-28.0f, -35.0f, 0.0f);
+        break;
+    default:
+        AddLavaPit(39.0f, -30.0f, 3.0f, 4.0f);
+        AddLavaPit(-39.0f, 30.0f, 3.0f, 4.0f);
+        AddSpikes(8.0f, 39.5f, 2.0f, 0.0f);
+        AddSpikes(-8.0f, -39.5f, 2.0f, 1.6f);
+        AddSpikes(7.0f, 20.0f, 1.5f, 0.8f);
+        AddSpikes(-7.0f, -20.0f, 1.5f, 2.4f);
+        AddMaw(31.0f, 32.5f, PI * 1.25f);
+        AddMaw(-31.0f, -32.5f, PI * 0.25f);
+        break;
+    }
+}
+
+Float SpikeExtension(const Hazard &hazard, const Float time)
+{
+    const Float t = std::fmod(std::max(0.0f, time + hazard.phase), SPIKE_PERIOD);
+    if (t < 2.0f)
+    {
+        return 0.0f;
+    }
+    if (t < 2.6f)
+    {
+        // Warning: the tips peek out and rattle.
+        return 0.07f + 0.03f * std::sin(t * 60.0f);
+    }
+    if (t < 2.7f)
+    {
+        return 0.1f + 0.9f * (t - 2.6f) / 0.1f;
+    }
+    if (t < 3.0f)
+    {
+        return 1.0f;
+    }
+    return std::max(0.0f, 1.0f - (t - 3.0f) / 0.2f);
+}
+
+FVec3 MawBiteCenter(const Hazard &hazard)
+{
+    return hazard.position + FVec3{std::sin(hazard.yaw), 0.0f, std::cos(hazard.yaw)} * (MAW_WELL_HALF + MAW_REACH * 0.55f);
 }
 
 void Arena::AddBox(const FVec3 &min, const FVec3 &max, const FVec3 &color, const Float grid)

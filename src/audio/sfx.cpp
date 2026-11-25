@@ -27,7 +27,8 @@ const SoundInfo SOUND_INFO[static_cast<size_t>(Sound::COUNT)] = {
     {"hit", 4},           {"hurt", 3},          {"death", 4},        {"frag", 2},
     {"spawn", 3},         {"match_end", 1},     {"empty", 2},        {"switch", 2},
     {"scatter", 4},       {"frag_fire", 4},     {"ripper", 6},       {"bounce", 6},
-    {"throw", 3},         {"mine_arm", 4},      {"ricochet", 6},
+    {"throw", 3},         {"mine_arm", 4},      {"ricochet", 6},     {"growl", 3},
+    {"chomp", 3},         {"spikes", 4},        {"sizzle", 4},
 };
 
 audio::AudioManager *GetAudio()

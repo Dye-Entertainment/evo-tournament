@@ -103,6 +103,12 @@ struct UiState
 
     // HUD
     Float damage = 0.0f;
+    // Per-edge hurt flashes (the side the hit came from glows hardest) and the low-health pulse.
+    Float hurtTop = 0.0f;
+    Float hurtBottom = 0.0f;
+    Float hurtLeft = 0.0f;
+    Float hurtRight = 0.0f;
+    Float lowHealth = 0.0f;
     Bool alive = false;
     std::string crosshair; // rifle, nova, rail, scatter, frag or ripper
     Float hit = 0.0f;

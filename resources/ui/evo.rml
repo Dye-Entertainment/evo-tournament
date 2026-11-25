@@ -7,9 +7,13 @@
 
 <!-- ================= HUD ================= -->
 <div id="hud" data-if="screen == 'match'">
-    <div data-if="damage > 0" data-style-opacity="damage * 0.43">
-        <div class="flash left"></div><div class="flash right"></div>
-        <div class="flash top"></div><div class="flash bottom"></div>
+    <div class="vignette" data-if="lowHealth > 0" data-style-opacity="lowHealth"></div>
+    <div data-if="damage > 0 || hurtTop > 0 || hurtBottom > 0 || hurtLeft > 0 || hurtRight > 0">
+        <div class="flash left" data-style-opacity="hurtLeft * 0.75"></div>
+        <div class="flash right" data-style-opacity="hurtRight * 0.75"></div>
+        <div class="flash top" data-style-opacity="hurtTop * 0.75"></div>
+        <div class="flash bottom" data-style-opacity="hurtBottom * 0.75"></div>
+        <div class="vignette" data-style-opacity="damage * 0.45"></div>
     </div>
 
     <div data-for="n : nameplates">

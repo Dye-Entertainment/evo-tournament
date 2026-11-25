@@ -54,9 +54,22 @@ or off.
 - Health, Mega Health, Armor and ammo packs respawn on timers. Controlling them is half the
   game.
 
+### Hazards
+
+Every arena has environmental hazards. If someone knocked you into one in the last four
+seconds, they get the frag; otherwise it counts as a suicide.
+
+- **Lava pits** are sunk into the floor. They burn fast, and you have to jump to climb out.
+- **Spike traps** are floor plates that fire every few seconds. The plate glows red and the
+  tips rattle just before the spikes shoot up.
+- **The Maw** lurks in a stone well. Its jaws open wider as you get close; step in front of
+  it and it gapes, growls and snaps shut half a second later, eating anyone in reach.
+
 ### Arenas
 
 Pick one in the main menu; the menu backdrop shows it. Online, the host's choice applies.
+All three were enlarged by a third horizontally (heights are unchanged, so every jump still
+works).
 
 - **Bastion**: a sunset fortress. A central keep holds the Rail Lance, the Mega Health sits
   on the bridge above it, and jump pads throw you up to the north and south decks.
